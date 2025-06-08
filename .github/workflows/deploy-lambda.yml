@@ -1,0 +1,50 @@
+name: Deploy Lambda Function
+
+on:
+  push:
+    branches:
+      - main # Trigger deployment on pushes to the main branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Set up Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20"
+
+      # Step 3: Install dependencies
+      - name: Install dependencies
+        run: npm install
+
+      # Step 4: Zip the Lambda function code
+      - name: Zip Lambda function
+        run: zip -r function.zip . -x "*.git*" "node_modules/aws-sdk/*"
+
+      # Step 5: Upload the zip file to S3
+      - name: Upload to S3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+        run: |
+          aws s3 cp function.zip s3://my-lambda-deployment-bucket/function.zip
+
+      # Step 6: Deploy the Lambda function
+      - name: Deploy Lambda function
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+        run: |
+          aws lambda update-function-code \
+            --function-name bedrock-query \
+            --s3-bucket my-lambda-deployment-bucket \
+            --s3-key function.zip

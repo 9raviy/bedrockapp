@@ -1,0 +1,108 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: CloudFormation template to provision a Lambda function to query Bedrock Claude model.
+
+Resources:
+  BedrockQueryLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: bedrock-query-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: BedrockAccessPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "arn:aws:logs:*:*:*"
+
+  BedrockQueryLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: bedrock-query
+      Runtime: nodejs20.x # Updated to use Node.js 20
+      Handler: src/handlers/queryBedrock.handler
+      Role: !GetAtt BedrockQueryLambdaRole.Arn
+      Code:
+        ZipFile: |
+          const { BedrockClient, InvokeModelCommand } = require("@aws-sdk/client-bedrock");
+
+          const bedrock = new BedrockClient({ region: "us-east-1" });
+
+          exports.handler = async (event) => {
+            try {
+              const inputText = event.query || "What is the weather today?";
+              const params = {
+                modelId: "anthropic.claude-v2", // Replace with your Bedrock Claude model ID
+                inputText: inputText,
+              };
+
+              const command = new InvokeModelCommand(params);
+              const response = await bedrock.send(command);
+
+              return {
+                statusCode: 200,
+                body: JSON.stringify({
+                  query: inputText,
+                  response: response.outputText,
+                }),
+              };
+            } catch (error) {
+              console.error("Error querying Bedrock:", error);
+              return {
+                statusCode: 500,
+                body: JSON.stringify({ error: error.message }),
+              };
+            }
+          };
+      Timeout: 15
+      MemorySize: 128
+
+  DeploymentIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: github-actions-deployment-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaDeploymentPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:UpdateFunctionCode
+                  - lambda:GetFunctionConfiguration
+                Resource: "arn:aws:lambda:*:*:function:bedrock-query"
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource: "arn:aws:s3:::my-lambda-deployment-bucket/*"
+
+Outputs:
+  LambdaFunctionName:
+    Description: Name of the Lambda function
+    Value: !Ref BedrockQueryLambdaFunction
+
+  LambdaFunctionArn:
+    Description: ARN of the Lambda function
+    Value: !GetAtt BedrockQueryLambdaFunction.Arn
