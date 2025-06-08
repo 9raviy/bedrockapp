@@ -20,12 +20,14 @@ jobs:
         with:
           node-version: "20"
 
-      # Step 3: Install dependencies
+      # Step 3: Navigate to backend folder and install dependencies
       - name: Install dependencies
+        working-directory: backend
         run: npm install
 
       # Step 4: Zip the Lambda function code
       - name: Zip Lambda function
+        working-directory: backend
         run: zip -r function.zip . -x "*.git*" "node_modules/aws-sdk/*"
 
       # Step 5: Upload the zip file to S3
@@ -33,7 +35,8 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: us-east-1
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        working-directory: backend
         run: |
           aws s3 cp function.zip s3://my-lambda-deployment-bucket/function.zip
 
@@ -42,7 +45,8 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: us-east-1
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        working-directory: backend
         run: |
           aws lambda update-function-code \
             --function-name bedrock-query \
