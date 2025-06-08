@@ -1,7 +1,15 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: CloudFormation template to provision a Lambda function to query Bedrock Claude model.
+Description: CloudFormation template to provision a Lambda function, S3 bucket, and IAM roles for querying Bedrock Claude model.
 
 Resources:
+  # S3 Bucket for Lambda Deployment
+  LambdaDeploymentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: my-lambda-deployment-bucket-for-bedrock # Replace with your desired bucket name
+      AccessControl: Private
+
+  # IAM Role for Lambda Function
   BedrockQueryLambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -29,6 +37,7 @@ Resources:
                   - logs:PutLogEvents
                 Resource: "arn:aws:logs:*:*:*"
 
+  # Lambda Function
   BedrockQueryLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -37,40 +46,12 @@ Resources:
       Handler: src/handlers/queryBedrock.handler
       Role: !GetAtt BedrockQueryLambdaRole.Arn
       Code:
-        ZipFile: |
-          const { BedrockClient, InvokeModelCommand } = require("@aws-sdk/client-bedrock");
-
-          const bedrock = new BedrockClient({ region: "us-east-1" });
-
-          exports.handler = async (event) => {
-            try {
-              const inputText = event.query || "What is the weather today?";
-              const params = {
-                modelId: "anthropic.claude-v2", // Replace with your Bedrock Claude model ID
-                inputText: inputText,
-              };
-
-              const command = new InvokeModelCommand(params);
-              const response = await bedrock.send(command);
-
-              return {
-                statusCode: 200,
-                body: JSON.stringify({
-                  query: inputText,
-                  response: response.outputText,
-                }),
-              };
-            } catch (error) {
-              console.error("Error querying Bedrock:", error);
-              return {
-                statusCode: 500,
-                body: JSON.stringify({ error: error.message }),
-              };
-            }
-          };
+        S3Bucket: !Ref LambdaDeploymentBucket
+        S3Key: function.zip # The zip file uploaded to the bucket
       Timeout: 15
       MemorySize: 128
 
+  # IAM Role for GitHub Actions Deployment
   DeploymentIAMRole:
     Type: AWS::IAM::Role
     Properties:
@@ -96,7 +77,7 @@ Resources:
                 Action:
                   - s3:PutObject
                   - s3:GetObject
-                Resource: "arn:aws:s3:::my-lambda-deployment-bucket/*"
+                Resource: !Sub "arn:aws:s3:::${LambdaDeploymentBucket}/*"
 
 Outputs:
   LambdaFunctionName:
@@ -106,3 +87,7 @@ Outputs:
   LambdaFunctionArn:
     Description: ARN of the Lambda function
     Value: !GetAtt BedrockQueryLambdaFunction.Arn
+
+  S3BucketName:
+    Description: Name of the S3 bucket for Lambda deployment
+    Value: !Ref LambdaDeploymentBucket
