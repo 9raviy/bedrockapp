@@ -36,6 +36,11 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: "arn:aws:logs:*:*:*"
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource:
+                  - "arn:aws:s3:::my-lambda-deployment-bucket-for-bedrock/*"
 
   # Lambda Function
   BedrockQueryLambdaFunction:
