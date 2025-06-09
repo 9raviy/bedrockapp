@@ -25,12 +25,30 @@ jobs:
         working-directory: backend
         run: npm install
 
-      # Step 4: Zip the Lambda function code
+      # Step 4: Debug AWS CLI Configuration
+      - name: Debug AWS CLI Configuration
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          aws configure list
+
+      # Step 5: Zip the Lambda function code
       - name: Zip Lambda function
         working-directory: backend
         run: zip -r function.zip . -x "*.git*" "node_modules/aws-sdk/*"
 
-      # Step 5: Upload the zip file to S3
+      # Step 6: Test S3 Access
+      - name: Test S3 Access
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          aws s3 ls s3://my-lambda-deployment-bucket
+
+      # Step 7: Upload the zip file to S3
       - name: Upload to S3
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -40,7 +58,7 @@ jobs:
         run: |
           aws s3 cp function.zip s3://my-lambda-deployment-bucket/function.zip
 
-      # Step 6: Deploy the Lambda function
+      # Step 8: Deploy the Lambda function
       - name: Deploy Lambda function
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
