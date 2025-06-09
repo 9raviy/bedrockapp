@@ -21,8 +21,9 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - bedrock:InvokeModel
-                Resource: "*"
+                  - bedrock:InvokeModelWithResponseStream
+                Resource:
+                  - "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0"
               - Effect: Allow
                 Action:
                   - logs:CreateLogGroup
@@ -48,6 +49,9 @@ Resources:
         S3Key: function.zip # The zip file uploaded to the bucket
       Timeout: 15
       MemorySize: 128
+      Environment:
+        Variables:
+          BEDROCK_MODEL_ID: anthropic.claude-3-5-sonnet-20241022-v2:0 # Replace with your actual model ID
 
   # IAM Role for GitHub Actions Deployment
   DeploymentIAMRole:

@@ -1,4 +1,3 @@
-const AWS = require("aws-sdk");
 const bedrockClient = require("../utils/bedrockClient");
 
 exports.handler = async (event) => {
