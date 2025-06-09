@@ -1,4 +1,4 @@
-name: Deploy Lambda Function
+name: Deploy Lambda Function and CloudFormation Stack
 
 on:
   push:
@@ -49,7 +49,21 @@ jobs:
         run: |
           aws s3 cp function.zip s3://my-lambda-deployment-bucket-for-bedrock/function.zip
 
-      # Step 7: Deploy the Lambda function
+      # Step 7: Deploy CloudFormation Stack
+      - name: Deploy CloudFormation Stack
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        working-directory: infrastructure
+        run: |
+          aws cloudformation deploy \
+            --template-file bedrock-query-template.yaml \
+            --stack-name bedrock-query-stack \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --debug
+
+      # Step 8: Deploy the Lambda function
       - name: Deploy Lambda function
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
