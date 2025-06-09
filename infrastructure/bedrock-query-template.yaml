@@ -2,13 +2,6 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: CloudFormation template to provision a Lambda function and IAM roles for querying Bedrock Claude model.
 
 Resources:
-  # S3 Bucket for Lambda Deployment
-  LambdaDeploymentBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: my-lambda-deployment-bucket-for-bedrock # Replace with your desired bucket name
-      AccessControl: Private
-
   # IAM Role for Lambda Function
   BedrockQueryLambdaRole:
     Type: AWS::IAM::Role
