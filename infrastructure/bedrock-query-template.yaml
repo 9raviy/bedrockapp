@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: CloudFormation template to provision a Lambda function, S3 bucket, and IAM roles for querying Bedrock Claude model.
+Description: CloudFormation template to provision a Lambda function and IAM roles for querying Bedrock Claude model.
 
 Resources:
   # S3 Bucket for Lambda Deployment
@@ -46,7 +46,7 @@ Resources:
       Handler: src/handlers/queryBedrock.handler
       Role: !GetAtt BedrockQueryLambdaRole.Arn
       Code:
-        S3Bucket: !Ref LambdaDeploymentBucket
+        S3Bucket: my-lambda-deployment-bucket-for-bedrock
         S3Key: function.zip # The zip file uploaded to the bucket
       Timeout: 15
       MemorySize: 128
@@ -79,26 +79,8 @@ Resources:
                   - s3:GetObject
                   - s3:ListBucket
                 Resource:
-                  - !Sub "arn:aws:s3:::${LambdaDeploymentBucket}" # Bucket itself
-                  - !Sub "arn:aws:s3:::${LambdaDeploymentBucket}/*" # All objects in the bucket
-
-  BucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref LambdaDeploymentBucket
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:role/github-actions-deployment-role"
-            Action:
-              - "s3:PutObject"
-              - "s3:GetObject"
-              - "s3:ListBucket"
-            Resource:
-              - !Sub "arn:aws:s3:::${LambdaDeploymentBucket}" # Bucket itself
-              - !Sub "arn:aws:s3:::${LambdaDeploymentBucket}/*" # All objects in the bucket
+                  - "arn:aws:s3:::my-lambda-deployment-bucket-for-bedrock"
+                  - "arn:aws:s3:::my-lambda-deployment-bucket-for-bedrock/*"
 
 Outputs:
   LambdaFunctionName:
@@ -108,7 +90,3 @@ Outputs:
   LambdaFunctionArn:
     Description: ARN of the Lambda function
     Value: !GetAtt BedrockQueryLambdaFunction.Arn
-
-  S3BucketName:
-    Description: Name of the S3 bucket for Lambda deployment
-    Value: !Ref LambdaDeploymentBucket
