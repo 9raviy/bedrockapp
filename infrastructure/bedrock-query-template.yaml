@@ -77,7 +77,10 @@ Resources:
                 Action:
                   - s3:PutObject
                   - s3:GetObject
-                Resource: !Sub "arn:aws:s3:::${LambdaDeploymentBucket}/*"
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::${LambdaDeploymentBucket}" # Bucket itself
+                  - !Sub "arn:aws:s3:::${LambdaDeploymentBucket}/*" # All objects in the bucket
 
   BucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -94,8 +97,8 @@ Resources:
               - "s3:GetObject"
               - "s3:ListBucket"
             Resource:
-              - !Sub "arn:aws:s3:::${LambdaDeploymentBucket}"
-              - !Sub "arn:aws:s3:::${LambdaDeploymentBucket}/*"
+              - !Sub "arn:aws:s3:::${LambdaDeploymentBucket}" # Bucket itself
+              - !Sub "arn:aws:s3:::${LambdaDeploymentBucket}/*" # All objects in the bucket
 
 Outputs:
   LambdaFunctionName:
