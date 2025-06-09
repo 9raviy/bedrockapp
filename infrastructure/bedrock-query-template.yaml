@@ -79,6 +79,24 @@ Resources:
                   - s3:GetObject
                 Resource: !Sub "arn:aws:s3:::${LambdaDeploymentBucket}/*"
 
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref LambdaDeploymentBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:role/github-actions-deployment-role"
+            Action:
+              - "s3:PutObject"
+              - "s3:GetObject"
+              - "s3:ListBucket"
+            Resource:
+              - !Sub "arn:aws:s3:::${LambdaDeploymentBucket}"
+              - !Sub "arn:aws:s3:::${LambdaDeploymentBucket}/*"
+
 Outputs:
   LambdaFunctionName:
     Description: Name of the Lambda function
