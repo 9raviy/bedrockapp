@@ -5,13 +5,14 @@ const {
   InvokeModelWithResponseStreamCommand,
 } = require("@aws-sdk/client-bedrock-runtime");
 
-const bedrock = new BedrockRuntimeClient({ region: process.env.AWS_REGION }); // Use region from .env
+const bedrock = new BedrockRuntimeClient({ region: "us-west-2" }); // Hardcoded region
 
 const queryBedrock = async (inputText) => {
   const params = {
+    modelId: "anthropic.claude-3-5-sonnet-20241022-v2:0", // Hardcoded model ID
     inferenceConfiguration: {
       inferenceProfile:
-        "arn:aws:bedrock:us-west-2:299335861593:inference-profile/us.anthropic.claude-3-5-sonnet-20241022-v2:0", // Updated inference profile ARN for us-west-2
+        "arn:aws:bedrock:us-west-2:299335861593:inference-profile/us.anthropic.claude-3-5-sonnet-20241022-v2:0", // Hardcoded inference profile ARN
     },
     contentType: "application/json", // Specify content type
     accept: "application/json", // Specify accept type
@@ -37,17 +38,35 @@ const queryBedrock = async (inputText) => {
   };
 
   try {
-    const command = new InvokeModelWithResponseStreamCommand(params); // Use the correct command for inference profiles
+    const command = new InvokeModelWithResponseStreamCommand(params); // Correctly instantiate the command
     const response = await bedrock.send(command); // Send the command
 
     // Process the streamed response
     const chunks = [];
     for await (const chunk of response.body) {
-      chunks.push(Buffer.from(chunk.chunk.bytes)); // Collect chunks of the response
-    }
-    const fullBody = Buffer.concat(chunks).toString("utf-8"); // Combine chunks into a full response
+      const chunkString = Buffer.from(chunk.chunk.bytes).toString("utf-8"); // Convert chunk to string
+      console.log("Chunk:", chunkString); // Debugging statement to log each chunk
 
-    return JSON.parse(fullBody); // Parse and return the response body
+      try {
+        const parsedChunk = JSON.parse(chunkString); // Parse each chunk as JSON
+        chunks.push(parsedChunk); // Add parsed chunk to the array
+      } catch (error) {
+        console.error("Error parsing chunk:", error); // Log parsing errors
+      }
+    }
+
+    // Combine relevant content from chunks
+    const contentBlocks = chunks
+      .filter(
+        (chunk) => chunk.type === "content_block_delta" && chunk.delta?.text
+      )
+      .map((chunk) => chunk.delta.text)
+      .join(""); // Combine text deltas into a single string
+
+    return {
+      query: inputText,
+      response: contentBlocks, // Return the combined response
+    };
   } catch (error) {
     console.error("Error querying Bedrock:", error);
     throw error; // Rethrow the error for the handler to catch
