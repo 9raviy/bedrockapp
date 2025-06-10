@@ -47,7 +47,7 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
         working-directory: backend
         run: |
-          aws s3 cp function.zip s3://my-lambda-deployment-bucket-for-bedrock/function.zip
+          aws s3 cp function.zip s3://my-lambda-deployment-bucket-for-bedrock2/function.zip
 
       # Step 7: Deploy CloudFormation Stack
       - name: Deploy CloudFormation Stack

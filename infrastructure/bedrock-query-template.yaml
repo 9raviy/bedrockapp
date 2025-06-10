@@ -23,7 +23,7 @@ Resources:
                 Action:
                   - bedrock:InvokeModelWithResponseStream
                 Resource:
-                  - "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0"
+                  - "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0"
               - Effect: Allow
                 Action:
                   - logs:CreateLogGroup
@@ -34,7 +34,7 @@ Resources:
                 Action:
                   - s3:GetObject
                 Resource:
-                  - "arn:aws:s3:::my-lambda-deployment-bucket-for-bedrock/*"
+                  - "arn:aws:s3:::my-lambda-deployment-bucket-for-bedrock2/*"
 
   # Lambda Function
   BedrockQueryLambdaFunction:
@@ -45,7 +45,7 @@ Resources:
       Handler: src/handlers/queryBedrock.handler
       Role: !GetAtt BedrockQueryLambdaRole.Arn
       Code:
-        S3Bucket: my-lambda-deployment-bucket-for-bedrock
+        S3Bucket: my-lambda-deployment-bucket-for-bedrock2 # Updated bucket name
         S3Key: function.zip # The zip file uploaded to the bucket
       Timeout: 15
       MemorySize: 128
@@ -81,8 +81,8 @@ Resources:
                   - s3:GetObject
                   - s3:ListBucket
                 Resource:
-                  - "arn:aws:s3:::my-lambda-deployment-bucket-for-bedrock"
-                  - "arn:aws:s3:::my-lambda-deployment-bucket-for-bedrock/*"
+                  - "arn:aws:s3:::my-lambda-deployment-bucket-for-bedrock2"
+                  - "arn:aws:s3:::my-lambda-deployment-bucket-for-bedrock2/*"
 
 Outputs:
   LambdaFunctionName:

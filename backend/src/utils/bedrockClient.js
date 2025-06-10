@@ -5,15 +5,14 @@ const {
   InvokeModelWithResponseStreamCommand,
 } = require("@aws-sdk/client-bedrock-runtime");
 
-const bedrock = new BedrockRuntimeClient({ region: "us-east-1" }); // Hardcoded region
+const bedrock = new BedrockRuntimeClient({ region: process.env.AWS_REGION }); // Use region from .env
 
 const queryBedrock = async (inputText) => {
   const params = {
-    modelId: "anthropic.claude-3-5-sonnet-20241022-v2:0", // Add the model ID explicitly
-    // inferenceConfiguration: {
-    //   inferenceProfile:
-    //     "arn:aws:bedrock:us-east-1:299335861593:inference-profile/us.anthropic.claude-3-5-sonnet-20241022-v2:0", // Hardcoded inference profile ARN
-    // },
+    inferenceConfiguration: {
+      inferenceProfile:
+        "arn:aws:bedrock:us-west-2:299335861593:inference-profile/us.anthropic.claude-3-5-sonnet-20241022-v2:0", // Updated inference profile ARN for us-west-2
+    },
     contentType: "application/json", // Specify content type
     accept: "application/json", // Specify accept type
     body: JSON.stringify({
