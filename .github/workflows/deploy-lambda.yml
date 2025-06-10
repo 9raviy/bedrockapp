@@ -61,6 +61,7 @@ jobs:
             --template-file bedrock-query-template.yaml \
             --stack-name bedrock-query-stack \
             --capabilities CAPABILITY_NAMED_IAM \
+            --region ${{ secrets.AWS_REGION }} \
             --debug
 
       # Step 8: Deploy the Lambda function
@@ -73,5 +74,6 @@ jobs:
         run: |
           aws lambda update-function-code \
             --function-name bedrock-query \
-            --s3-bucket my-lambda-deployment-bucket-for-bedrock \
-            --s3-key function.zip
+            --s3-bucket my-lambda-deployment-bucket-for-bedrock2 \
+            --s3-key function.zip \
+            --region ${{ secrets.AWS_REGION }}
