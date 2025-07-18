@@ -2,6 +2,46 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: CloudFormation template to provision a Lambda function and IAM roles for querying Bedrock Claude model.
 
 Resources:
+  # S3 Bucket for Frontend Hosting (moved up to avoid circular dependency)
+  FrontendS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-frontend-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ["*"]
+            AllowedMethods: [GET, HEAD]
+            AllowedOrigins: ["*"]
+            MaxAge: 3600
+
+  # S3 Bucket Policy for Public Read Access
+  FrontendS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendS3Bucket
+      PolicyDocument:
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Sub "${FrontendS3Bucket}/*"
+
+  # CloudFront Origin Access Identity
+  CloudFrontOriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub "OAI for ${AWS::StackName}"
+
   # IAM Role for Lambda Function
   BedrockQueryLambdaRole:
     Type: AWS::IAM::Role
@@ -41,17 +81,17 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: bedrock-query
-      Runtime: nodejs20.x # Updated to use Node.js 20
+      Runtime: nodejs20.x
       Handler: src/handlers/queryBedrock.handler
       Role: !GetAtt BedrockQueryLambdaRole.Arn
       Code:
-        S3Bucket: my-lambda-deployment-bucket-for-bedrock2 # Updated bucket name
-        S3Key: function.zip # The zip file uploaded to the bucket
+        S3Bucket: my-lambda-deployment-bucket-for-bedrock2
+        S3Key: function.zip
       Timeout: 15
       MemorySize: 128
       Environment:
         Variables:
-          BEDROCK_MODEL_ID: anthropic.claude-3-5-sonnet-20241022-v2:0 # Replace with your actual model ID
+          BEDROCK_MODEL_ID: anthropic.claude-3-5-sonnet-20241022-v2:0
 
   # API Gateway REST API
   BedrockQuizApiGateway:
@@ -142,91 +182,6 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${BedrockQuizApiGateway}/*/*"
 
-  # IAM Role for GitHub Actions Deployment
-  DeploymentIAMRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: github-actions-deployment-role
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ec2.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: LambdaDeploymentPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - lambda:UpdateFunctionCode
-                  - lambda:GetFunctionConfiguration
-                Resource: "arn:aws:lambda:*:*:function:bedrock-query"
-              - Effect: Allow
-                Action:
-                  - s3:PutObject
-                  - s3:GetObject
-                  - s3:ListBucket
-                Resource:
-                  - "arn:aws:s3:::my-lambda-deployment-bucket-for-bedrock2"
-                  - "arn:aws:s3:::my-lambda-deployment-bucket-for-bedrock2/*"
-              - Effect: Allow
-                Action:
-                  - s3:PutObject
-                  - s3:GetObject
-                  - s3:ListBucket
-                  - s3:DeleteObject
-                  - s3:PutObjectAcl
-                Resource:
-                  - !Sub "${FrontendS3Bucket}"
-                  - !Sub "${FrontendS3Bucket}/*"
-              - Effect: Allow
-                Action:
-                  - cloudformation:DescribeStacks
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - cloudfront:CreateInvalidation
-                  - cloudfront:GetDistribution
-                  - cloudfront:ListDistributions
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - apigateway:GET
-                  - apigateway:POST
-                  - apigateway:PUT
-                  - apigateway:DELETE
-                Resource: "*"
-
-  # S3 Bucket for Frontend Hosting
-  FrontendS3Bucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub "${AWS::StackName}-frontend-${AWS::AccountId}"
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: false
-        BlockPublicPolicy: false
-        IgnorePublicAcls: false
-        RestrictPublicBuckets: false
-      WebsiteConfiguration:
-        IndexDocument: index.html
-        ErrorDocument: index.html
-
-  # S3 Bucket Policy for Public Read Access
-  FrontendS3BucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref FrontendS3Bucket
-      PolicyDocument:
-        Statement:
-          - Sid: PublicReadGetObject
-            Effect: Allow
-            Principal: "*"
-            Action: s3:GetObject
-            Resource: !Sub "${FrontendS3Bucket}/*"
-
   # CloudFront Distribution for Frontend
   FrontendCloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
@@ -254,7 +209,7 @@ Resources:
           - Id: S3Origin
             DomainName: !GetAtt FrontendS3Bucket.RegionalDomainName
             S3OriginConfig:
-              OriginAccessIdentity: ""
+              OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${CloudFrontOriginAccessIdentity}"
         PriceClass: PriceClass_100
         CustomErrorResponses:
           - ErrorCode: 404
@@ -296,3 +251,9 @@ Outputs:
     Value: !Sub "https://${FrontendCloudFrontDistribution.DomainName}"
     Export:
       Name: !Sub "${AWS::StackName}-FrontendCloudFrontURL"
+
+  FrontendCloudFrontDistributionId:
+    Description: CloudFront distribution ID for cache invalidation
+    Value: !Ref FrontendCloudFrontDistribution
+    Export:
+      Name: !Sub "${AWS::StackName}-FrontendCloudFrontDistributionId"
