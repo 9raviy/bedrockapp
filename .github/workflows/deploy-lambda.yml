@@ -95,18 +95,32 @@ jobs:
         run: |
           echo "🚀 Deploying CloudFormation stack..."
 
-          # Deploy the stack with custom domain parameters
-          aws cloudformation deploy \
-            --template-file bedrock-query-template.yaml \
-            --stack-name bedrock-query-stack \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --region ${{ secrets.AWS_REGION }} \
-            --no-fail-on-empty-changeset \
-            --parameter-overrides \
-              DomainName=${{ secrets.DOMAIN_NAME }} \
-              SubdomainName=${{ secrets.SUBDOMAIN_NAME }} \
-              HostedZoneId=${{ secrets.HOSTED_ZONE_ID }} \
-            || echo "Deploy command completed with warnings"
+          # Check if domain parameters are set
+          if [ -n "${{ secrets.DOMAIN_NAME }}" ] && [ -n "${{ secrets.HOSTED_ZONE_ID }}" ]; then
+            echo "📋 Deploying with custom domain: ${{ secrets.SUBDOMAIN_NAME }}.${{ secrets.DOMAIN_NAME }}"
+            # Deploy the stack with custom domain parameters
+            aws cloudformation deploy \
+              --template-file bedrock-query-template.yaml \
+              --stack-name bedrock-query-stack \
+              --capabilities CAPABILITY_NAMED_IAM \
+              --region ${{ secrets.AWS_REGION }} \
+              --no-fail-on-empty-changeset \
+              --parameter-overrides \
+                DomainName=${{ secrets.DOMAIN_NAME }} \
+                SubdomainName=${{ secrets.SUBDOMAIN_NAME }} \
+                HostedZoneId=${{ secrets.HOSTED_ZONE_ID }} \
+              || echo "Deploy command completed with warnings"
+          else
+            echo "📋 Deploying without custom domain (using CloudFront URL only)"
+            # Deploy the stack without custom domain parameters
+            aws cloudformation deploy \
+              --template-file bedrock-query-template.yaml \
+              --stack-name bedrock-query-stack \
+              --capabilities CAPABILITY_NAMED_IAM \
+              --region ${{ secrets.AWS_REGION }} \
+              --no-fail-on-empty-changeset \
+              || echo "Deploy command completed with warnings"
+          fi
 
           echo "⏳ Ensuring stack is in a stable state..."
 
