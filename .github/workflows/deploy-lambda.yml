@@ -95,32 +95,18 @@ jobs:
         run: |
           echo "🚀 Deploying CloudFormation stack..."
 
-          # Check if domain parameters are set
-          if [ -n "${{ secrets.DOMAIN_NAME }}" ] && [ -n "${{ secrets.HOSTED_ZONE_ID }}" ]; then
-            echo "📋 Deploying with custom domain: ${{ secrets.SUBDOMAIN_NAME }}.${{ secrets.DOMAIN_NAME }}"
-            # Deploy the stack with custom domain parameters
-            aws cloudformation deploy \
-              --template-file bedrock-query-template.yaml \
-              --stack-name bedrock-query-stack \
-              --capabilities CAPABILITY_NAMED_IAM \
-              --region ${{ secrets.AWS_REGION }} \
-              --no-fail-on-empty-changeset \
-              --parameter-overrides \
-                DomainName=${{ secrets.DOMAIN_NAME }} \
-                SubdomainName=${{ secrets.SUBDOMAIN_NAME }} \
-                HostedZoneId=${{ secrets.HOSTED_ZONE_ID }} \
-              || echo "Deploy command completed with warnings"
-          else
-            echo "📋 Deploying without custom domain (using CloudFront URL only)"
-            # Deploy the stack without custom domain parameters
-            aws cloudformation deploy \
-              --template-file bedrock-query-template.yaml \
-              --stack-name bedrock-query-stack \
-              --capabilities CAPABILITY_NAMED_IAM \
-              --region ${{ secrets.AWS_REGION }} \
-              --no-fail-on-empty-changeset \
-              || echo "Deploy command completed with warnings"
-          fi
+          # Deploy the stack (custom domain features disabled in template)
+          aws cloudformation deploy \
+            --template-file bedrock-query-template.yaml \
+            --stack-name bedrock-query-stack \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region ${{ secrets.AWS_REGION }} \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              DomainName=${{ secrets.DOMAIN_NAME || 'none' }} \
+              SubdomainName=${{ secrets.SUBDOMAIN_NAME || 'quiz' }} \
+              HostedZoneId=${{ secrets.HOSTED_ZONE_ID || '' }} \
+            || echo "Deploy command completed with warnings"
 
           echo "⏳ Ensuring stack is in a stable state..."
 
@@ -204,11 +190,15 @@ jobs:
         run: |
           echo "🔗 Getting API Gateway URL from CloudFormation..."
 
+          # Use the stack region from the environment variable
+          STACK_REGION="${STACK_REGION:-${{ secrets.AWS_REGION }}}"
+          echo "📍 Using region: $STACK_REGION"
+
           API_URL=$(aws cloudformation describe-stacks \
             --stack-name bedrock-query-stack \
             --query 'Stacks[0].Outputs[?OutputKey==`ApiGatewayUrl`].OutputValue' \
             --output text \
-            --region ${{ secrets.AWS_REGION }})
+            --region $STACK_REGION)
 
           if [ -z "$API_URL" ] || [ "$API_URL" = "None" ]; then
             echo "❌ Error: API Gateway URL not found in stack outputs"

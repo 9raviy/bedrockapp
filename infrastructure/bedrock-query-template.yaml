@@ -21,19 +21,8 @@ Conditions:
   UseCustomDomain: !Not [!Equals [!Ref HostedZoneId, ""]]
 
 Resources:
-  # SSL Certificate for Custom Domain (SIMPLIFIED)
-  SSLCertificate:
-    Type: AWS::CertificateManager::Certificate
-    Condition: UseCustomDomain
-    Properties:
-      DomainName: !Sub "${SubdomainName}.${DomainName}"
-      ValidationMethod: DNS
-      DomainValidationOptions:
-        - DomainName: !Sub "${SubdomainName}.${DomainName}"
-          HostedZoneId: !Ref HostedZoneId
-      Tags:
-        - Key: Name
-          Value: !Sub "${AWS::StackName}-ssl-certificate"
+  # NOTE: SSL Certificate for custom domains requires manual setup in us-east-1
+  # For now, we'll deploy without custom SSL and use CloudFront default certificate
 
   # S3 Bucket for Frontend Hosting
   FrontendS3Bucket:
@@ -234,10 +223,7 @@ Resources:
       - FrontendS3BucketPolicy
     Properties:
       DistributionConfig:
-        Aliases: !If
-          - UseCustomDomain
-          - [!Sub "${SubdomainName}.${DomainName}"]
-          - !Ref "AWS::NoValue"
+        # Removed custom domain aliases - will use CloudFront default domain
         Comment: !Sub "CloudFront distribution for ${AWS::StackName}"
         DefaultCacheBehavior:
           TargetOriginId: S3Origin
@@ -260,12 +246,9 @@ Resources:
               HTTPSPort: 443
               OriginProtocolPolicy: http-only
         PriceClass: PriceClass_100
-        ViewerCertificate: !If
-          - UseCustomDomain
-          - AcmCertificateArn: !Ref SSLCertificate
-            SslSupportMethod: sni-only
-            MinimumProtocolVersion: TLSv1.2_2021
-          - CloudFrontDefaultCertificate: true
+        # Use CloudFront default certificate instead of custom SSL
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
         CustomErrorResponses:
           - ErrorCode: 404
             ResponseCode: 200
@@ -274,17 +257,17 @@ Resources:
             ResponseCode: 200
             ResponsePagePath: /index.html
 
-  # Route 53 DNS Record for Frontend (NEW)
-  DNSRecord:
-    Type: AWS::Route53::RecordSet
-    Condition: UseCustomDomain
-    Properties:
-      HostedZoneId: !Ref HostedZoneId
-      Name: !Sub "${SubdomainName}.${DomainName}"
-      Type: A
-      AliasTarget:
-        DNSName: !GetAtt FrontendCloudFrontDistribution.DomainName
-        HostedZoneId: Z2FDTNDATAQYW2 # CloudFront Hosted Zone ID (global constant)
+  # Route 53 DNS Record for Frontend (DISABLED - requires custom SSL)
+  # DNSRecord:
+  #   Type: AWS::Route53::RecordSet
+  #   Condition: UseCustomDomain
+  #   Properties:
+  #     HostedZoneId: !Ref HostedZoneId
+  #     Name: !Sub "${SubdomainName}.${DomainName}"
+  #     Type: A
+  #     AliasTarget:
+  #       DNSName: !GetAtt FrontendCloudFrontDistribution.DomainName
+  #       HostedZoneId: Z2FDTNDATAQYW2 # CloudFront Hosted Zone ID (global constant)
 
 Outputs:
   LambdaFunctionName:
@@ -320,18 +303,15 @@ Outputs:
       Name: !Sub "${AWS::StackName}-FrontendCloudFrontURL"
 
   CustomDomainURL:
-    Description: Custom domain URL (if configured)
-    Condition: UseCustomDomain
-    Value: !Sub "https://${SubdomainName}.${DomainName}"
-    Export:
-      Name: !Sub "${AWS::StackName}-CustomDomainURL"
+    Description: Custom domain URL (disabled - requires SSL setup in us-east-1)
+    Value: !Sub "Will be available at https://${SubdomainName}.${DomainName} after manual SSL setup"
 
-  SSLCertificateArn:
-    Description: SSL Certificate ARN (if created)
-    Condition: UseCustomDomain
-    Value: !Ref SSLCertificate
-    Export:
-      Name: !Sub "${AWS::StackName}-SSLCertificateArn"
+  # SSLCertificateArn:
+  #   Description: SSL Certificate ARN (if created)
+  #   Condition: UseCustomDomain
+  #   Value: !Ref SSLCertificate
+  #   Export:
+  #     Name: !Sub "${AWS::StackName}-SSLCertificateArn"
 
   FrontendCloudFrontDistributionId:
     Description: CloudFront distribution ID for cache invalidation
