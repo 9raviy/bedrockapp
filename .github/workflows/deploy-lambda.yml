@@ -133,4 +133,169 @@ jobs:
             fi
           done
 
-      # Continue with Step 8, 9, etc...
+      # Step 8: Install frontend dependencies
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: |
+          echo "📦 Installing frontend dependencies..."
+          npm install
+
+      # Step 9: Build frontend
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          echo "🏗️ Building React frontend..."
+          npm run build
+          echo "📁 Checking build output..."
+          ls -la build/
+          if [ ! -f "build/index.html" ]; then
+            echo "❌ Build failed - index.html not found"
+            exit 1
+          fi
+          echo "✅ Frontend build completed successfully"
+
+      # Step 9.5: Update API endpoint in frontend (NEW)
+      - name: Update API endpoint in frontend
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        working-directory: frontend
+        run: |
+          echo "🔗 Getting API Gateway URL from CloudFormation..."
+
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name bedrock-query-stack \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiGatewayUrl`].OutputValue' \
+            --output text \
+            --region ${{ secrets.AWS_REGION }})
+
+          if [ -z "$API_URL" ] || [ "$API_URL" = "None" ]; then
+            echo "❌ Error: API Gateway URL not found in stack outputs"
+            exit 1
+          fi
+
+          echo "✅ Found API URL: $API_URL"
+          echo "🔄 Updating api.js with correct endpoint..."
+
+          # Update the API endpoint in api.js
+          sed -i "s|const LAMBDA_ENDPOINT = \".*\";|const LAMBDA_ENDPOINT = \"$API_URL\";|g" src/api.js
+
+          # Verify the change
+          echo "📋 Updated api.js content:"
+          grep "LAMBDA_ENDPOINT" src/api.js
+
+          echo "✅ API endpoint updated successfully"
+
+      # Step 9.6: Rebuild frontend with updated API endpoint (NEW)
+      - name: Rebuild frontend with updated API endpoint
+        working-directory: frontend
+        run: |
+          echo "🏗️ Rebuilding frontend with updated API endpoint..."
+          npm run build
+          echo "✅ Frontend rebuilt with correct API endpoint"
+
+      # Step 10: Get S3 bucket name from CloudFormation outputs
+      - name: Get S3 bucket name
+        id: get-bucket-name
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          echo "📋 Getting S3 bucket name..."
+          BUCKET_NAME=$(aws cloudformation describe-stacks \
+            --stack-name bedrock-query-stack \
+            --query 'Stacks[0].Outputs[?OutputKey==`FrontendS3BucketName`].OutputValue' \
+            --output text \
+            --region ${{ secrets.AWS_REGION }})
+
+          if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "None" ]; then
+            echo "❌ Error: Frontend S3 bucket not found in stack outputs"
+            exit 1
+          fi
+
+          echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_OUTPUT
+          echo "✅ Found S3 bucket: $BUCKET_NAME"
+
+      # Step 11: Deploy frontend to S3
+      - name: Deploy frontend to S3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        working-directory: frontend
+        run: |
+          echo "🚀 Deploying frontend to S3..."
+          echo "📁 Bucket: ${{ steps.get-bucket-name.outputs.BUCKET_NAME }}"
+
+          # Sync build files to S3
+          aws s3 sync build/ s3://${{ steps.get-bucket-name.outputs.BUCKET_NAME }} \
+            --delete \
+            --cache-control "max-age=31536000" \
+            --exclude "*.html" \
+            --exclude "service-worker.js"
+
+          # Upload HTML files with no-cache
+          aws s3 sync build/ s3://${{ steps.get-bucket-name.outputs.BUCKET_NAME }} \
+            --cache-control "no-cache, no-store, must-revalidate" \
+            --include "*.html" \
+            --include "service-worker.js"
+
+          echo "✅ Frontend deployed to S3"
+
+      # Step 12: Invalidate CloudFront cache
+      - name: Invalidate CloudFront cache
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          echo "🔄 Getting CloudFront distribution ID..."
+
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+            --stack-name bedrock-query-stack \
+            --query 'Stacks[0].Outputs[?OutputKey==`FrontendCloudFrontDistributionId`].OutputValue' \
+            --output text \
+            --region ${{ secrets.AWS_REGION }})
+
+          if [ -z "$DISTRIBUTION_ID" ] || [ "$DISTRIBUTION_ID" = "None" ]; then
+            echo "❌ Error: CloudFront distribution ID not found"
+            exit 1
+          fi
+
+          echo "🔄 Creating CloudFront invalidation..."
+          aws cloudfront create-invalidation \
+            --distribution-id $DISTRIBUTION_ID \
+            --paths "/*"
+
+          echo "✅ CloudFront invalidation created"
+          echo "⏳ Cache invalidation may take 5-15 minutes to complete"
+
+      # Step 13: Display URLs
+      - name: Display deployment URLs
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          echo "🎉 Deployment completed successfully!"
+          echo ""
+          echo "📋 Your application URLs:"
+
+          CLOUDFRONT_URL=$(aws cloudformation describe-stacks \
+            --stack-name bedrock-query-stack \
+            --query 'Stacks[0].Outputs[?OutputKey==`FrontendCloudFrontURL`].OutputValue' \
+            --output text \
+            --region ${{ secrets.AWS_REGION }})
+
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name bedrock-query-stack \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiGatewayUrl`].OutputValue' \
+            --output text \
+            --region ${{ secrets.AWS_REGION }})
+
+          echo "🌐 Frontend URL: $CLOUDFRONT_URL"
+          echo "🔗 API URL: $API_URL"
+          echo ""
+          echo "⏳ Note: CloudFront cache invalidation may take 5-15 minutes to complete"

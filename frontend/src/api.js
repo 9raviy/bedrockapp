@@ -1,6 +1,6 @@
 // Update the endpoint to your deployed API Gateway or Lambda URL
 const LAMBDA_ENDPOINT =
-  "https://zshqigqvtd.execute-api.us-west-2.amazonaws.com/prod/quiz";
+  "https://a5kicb2rpk.execute-api.us-west-2.amazonaws.com/prod/quiz";
 
 export async function getNextQuestion(payload) {
   try {
