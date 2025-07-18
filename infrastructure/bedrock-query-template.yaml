@@ -22,18 +22,25 @@ Resources:
             AllowedOrigins: ["*"]
             MaxAge: 3600
 
-  # S3 Bucket Policy for Public Read Access
+  # S3 Bucket Policy for Public Read Access (Fixed)
   FrontendS3BucketPolicy:
     Type: AWS::S3::BucketPolicy
+    DependsOn: FrontendS3Bucket # Explicit dependency
     Properties:
       Bucket: !Ref FrontendS3Bucket
       PolicyDocument:
+        Version: "2012-10-17" # Added version
         Statement:
           - Sid: PublicReadGetObject
             Effect: Allow
             Principal: "*"
-            Action: s3:GetObject
+            Action: "s3:GetObject" # Quoted action
             Resource: !Sub "${FrontendS3Bucket}/*"
+          - Sid: PublicReadBucket # Additional permission for listing
+            Effect: Allow
+            Principal: "*"
+            Action: "s3:GetBucketLocation"
+            Resource: !Ref FrontendS3Bucket
 
   # CloudFront Origin Access Identity
   CloudFrontOriginAccessIdentity:
@@ -42,7 +49,7 @@ Resources:
       CloudFrontOriginAccessIdentityConfig:
         Comment: !Sub "OAI for ${AWS::StackName}"
 
-  # IAM Role for Lambda Function (ONLY THIS ONE)
+  # IAM Role for Lambda Function
   BedrockQueryLambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -161,7 +168,7 @@ Resources:
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: false
             method.response.header.Access-Control-Allow-Headers: false
-            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-methods: false
 
   # API Gateway Deployment
   ApiGatewayDeployment:
@@ -185,6 +192,9 @@ Resources:
   # CloudFront Distribution for Frontend
   FrontendCloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
+    DependsOn:
+      - FrontendS3Bucket
+      - FrontendS3BucketPolicy
     Properties:
       DistributionConfig:
         Comment: !Sub "CloudFront distribution for ${AWS::StackName}"
@@ -202,6 +212,7 @@ Resources:
             QueryString: false
             Cookies:
               Forward: none
+          Compress: true
         DefaultRootObject: index.html
         Enabled: true
         HttpVersion: http2

@@ -97,6 +97,42 @@ jobs:
             fi
           done
 
+      # Step 6.5: Handle rollback state
+      - name: Handle stack rollback state
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          echo "🔍 Checking stack status..."
+
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name bedrock-query-stack \
+            --region ${{ secrets.AWS_REGION }} \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "STACK_NOT_EXISTS")
+
+          echo "Current stack status: $STATUS"
+
+          if [[ "$STATUS" == *"ROLLBACK_COMPLETE"* ]] || [[ "$STATUS" == *"FAILED"* ]]; then
+            echo "⚠️ Stack is in failed state: $STATUS"
+            echo "🗑️ Deleting failed stack..."
+            aws cloudformation delete-stack \
+              --stack-name bedrock-query-stack \
+              --region ${{ secrets.AWS_REGION }}
+            
+            echo "⏳ Waiting for stack deletion (this may take 2-5 minutes)..."
+            aws cloudformation wait stack-delete-complete \
+              --stack-name bedrock-query-stack \
+              --region ${{ secrets.AWS_REGION }}
+            
+            echo "✅ Failed stack deleted. Ready for fresh deployment."
+          elif [[ "$STATUS" == "STACK_NOT_EXISTS" ]]; then
+            echo "✅ No existing stack found. Ready for fresh deployment."
+          else
+            echo "✅ Stack is in good state: $STATUS"
+          fi
+
       # Step 8: Deploy the Lambda function
       - name: Deploy Lambda function
         env:
