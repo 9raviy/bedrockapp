@@ -53,33 +53,55 @@ exports.handler = async (event) => {
       console.log("Checking answer for question:", lastQuestion);
       console.log("User's answer:", lastAnswer);
 
-      // Ask Bedrock to check the answer
-      const checkPrompt = `Question: ${lastQuestion}\nUser's Answer: ${lastAnswer}\n\nPlease respond with exactly "CORRECT" if the answer is right, or "INCORRECT" if the answer is wrong. Do not include any other text in your response.`;
+      // ✅ IMPROVED: Better prompt with clear instructions
+      const checkPrompt = `You are an answer checker. 
+
+Question: "${lastQuestion}"
+Student's Answer: "${lastAnswer}"
+
+Instructions: 
+- If the answer is correct, respond with exactly: CORRECT
+- If the answer is incorrect, respond with exactly: INCORRECT
+- Do not include any explanation or other text in your response.
+
+Your response:`;
+
       const checkResponse = await bedrockClient.queryBedrock(checkPrompt);
       console.log("Answer check response:", checkResponse);
 
       const responseText = (checkResponse.response || "").trim().toUpperCase();
-      // More robust answer checking - look for "CORRECT" anywhere in the response
+
+      // ✅ FIXED: Exact matching with fallbacks
       const isCorrect =
-        responseText.includes("CORRECT") ||
-        responseText.includes("TRUE") ||
-        responseText.includes("RIGHT");
+        responseText === "CORRECT" ||
+        responseText.startsWith("CORRECT.") ||
+        responseText.startsWith("CORRECT!") ||
+        (responseText.includes("CORRECT") &&
+          !responseText.includes("INCORRECT"));
 
       console.log("Response text:", responseText);
       console.log("Is answer correct?", isCorrect);
-      //random
+
       if (isCorrect) {
         answerFeedback = {
           result: "Correct",
           explanation: "Well done! That's the correct answer.",
         };
         updatedScore += 1;
-        updatedDifficulty += 1; // Increase difficulty
+        updatedDifficulty = Math.min(10, updatedDifficulty + 1); // Cap at difficulty 10
         console.log("Answer was correct, updated score:", updatedScore);
       } else {
         console.log("Answer was incorrect, getting explanation...");
-        // Get explanation for incorrect answer
-        const explanationPrompt = `Question: ${lastQuestion}\nUser's Answer: ${lastAnswer}\nThis answer is incorrect. Please provide a brief explanation of why it's wrong and what the correct answer should be. Keep it concise and educational.`;
+
+        // ✅ IMPROVED: Concise explanation prompt
+        const explanationPrompt = `Question: "${lastQuestion}"
+Student's Answer: "${lastAnswer}"
+
+Provide a concise explanation in this format:
+"The correct answer is [ANSWER]. Your answer ([STUDENT_ANSWER]) is incorrect because [BRIEF REASON]."
+
+Keep it educational but under 40 words:`;
+
         const explanationResponse = await bedrockClient.queryBedrock(
           explanationPrompt
         );
@@ -92,8 +114,8 @@ exports.handler = async (event) => {
         };
         console.log("Final answerFeedback object:", answerFeedback);
 
-        // Optionally decrease difficulty or keep the same
-        updatedDifficulty = Math.max(1, updatedDifficulty - 1);
+        // Keep same difficulty or decrease slightly
+        updatedDifficulty = Math.max(1, updatedDifficulty);
       }
     }
 
