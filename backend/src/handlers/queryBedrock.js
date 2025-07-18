@@ -52,25 +52,26 @@ exports.handler = async (event) => {
     if (lastQuestion && lastAnswer) {
       console.log("Checking answer for question:", lastQuestion);
       console.log("User's answer:", lastAnswer);
-      
+
       // Ask Bedrock to check the answer
       const checkPrompt = `Question: ${lastQuestion}\nUser's Answer: ${lastAnswer}\n\nPlease respond with exactly "CORRECT" if the answer is right, or "INCORRECT" if the answer is wrong. Do not include any other text in your response.`;
       const checkResponse = await bedrockClient.queryBedrock(checkPrompt);
       console.log("Answer check response:", checkResponse);
-      
+
       const responseText = (checkResponse.response || "").trim().toUpperCase();
       // More robust answer checking - look for "CORRECT" anywhere in the response
-      const isCorrect = responseText.includes("CORRECT") || 
-                       responseText.includes("TRUE") || 
-                       responseText.includes("RIGHT");
-      
+      const isCorrect =
+        responseText.includes("CORRECT") ||
+        responseText.includes("TRUE") ||
+        responseText.includes("RIGHT");
+
       console.log("Response text:", responseText);
       console.log("Is answer correct?", isCorrect);
-
+      //random
       if (isCorrect) {
         answerFeedback = {
           result: "Correct",
-          explanation: "Well done! That's the correct answer."
+          explanation: "Well done! That's the correct answer.",
         };
         updatedScore += 1;
         updatedDifficulty += 1; // Increase difficulty
@@ -83,21 +84,22 @@ exports.handler = async (event) => {
           explanationPrompt
         );
         console.log("Explanation response:", explanationResponse);
-        
+
         answerFeedback = {
           result: "Incorrect",
           explanation:
             explanationResponse.response || "No explanation available.",
         };
         console.log("Final answerFeedback object:", answerFeedback);
-        
+
         // Optionally decrease difficulty or keep the same
         updatedDifficulty = Math.max(1, updatedDifficulty - 1);
       }
     }
 
     // Build prompt for next question
-    const isCorrectAnswer = answerFeedback && answerFeedback.result === "Correct";
+    const isCorrectAnswer =
+      answerFeedback && answerFeedback.result === "Correct";
     const quizPrompt = buildQuizPrompt(
       updatedDifficulty,
       lastQuestion,
@@ -112,8 +114,11 @@ exports.handler = async (event) => {
       difficulty: updatedDifficulty,
       feedback: answerFeedback,
     };
-    
-    console.log("Final response being sent:", JSON.stringify(finalResponse, null, 2));
+
+    console.log(
+      "Final response being sent:",
+      JSON.stringify(finalResponse, null, 2)
+    );
 
     return {
       statusCode: 200,
