@@ -26,6 +26,7 @@ function Quiz() {
     setLoading(true);
     try {
       const res = await getNextQuestion(payload);
+      console.log("API response:", res); // Debug logging
       setQuestion(res.nextQuestion);
       setFeedback(res.feedback || "");
       setState({
@@ -36,6 +37,7 @@ function Quiz() {
         wasCorrect:
           res.feedback === "Correct!" ||
           (typeof res.feedback === "object" &&
+            res.feedback &&
             res.feedback.result === "Correct"),
       });
       setAnswer("");
@@ -99,22 +101,28 @@ function Quiz() {
         <div
           className={`feedback ${
             feedback === "Correct!" ||
-            (typeof feedback === "object" && feedback.result === "Correct")
+            (typeof feedback === "object" &&
+              feedback &&
+              feedback.result === "Correct")
               ? "correct"
               : "incorrect"
           }`}
         >
           {typeof feedback === "string" ? (
             feedback
-          ) : (
+          ) : feedback && typeof feedback === "object" ? (
             <div>
-              <div className="feedback-result">{feedback.result}</div>
+              <div className="feedback-result">
+                {feedback.result || "Error"}
+              </div>
               {feedback.explanation && (
                 <div className="feedback-explanation">
                   {feedback.explanation}
                 </div>
               )}
             </div>
+          ) : (
+            "No feedback available"
           )}
         </div>
       )}
