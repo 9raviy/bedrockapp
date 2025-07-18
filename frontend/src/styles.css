@@ -1,0 +1,51 @@
+body {
+  font-family: Arial, sans-serif;
+  background: #f7f7f7;
+  margin: 0;
+  padding: 0;
+}
+
+.app-container {
+  max-width: 500px;
+  margin: 40px auto;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 32px;
+}
+
+.quiz-container {
+  margin-top: 24px;
+}
+
+.score,
+.difficulty {
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.question {
+  margin: 16px 0;
+  font-size: 1.1em;
+}
+
+input[type="text"] {
+  padding: 8px;
+  width: 70%;
+  margin-right: 8px;
+}
+
+button {
+  padding: 8px 16px;
+}
+
+.feedback {
+  margin-top: 16px;
+  font-size: 1em;
+  color: #007700;
+}
+
+.loading {
+  margin-top: 16px;
+  color: #888;
+}

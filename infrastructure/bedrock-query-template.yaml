@@ -53,6 +53,95 @@ Resources:
         Variables:
           BEDROCK_MODEL_ID: anthropic.claude-3-5-sonnet-20241022-v2:0 # Replace with your actual model ID
 
+  # API Gateway REST API
+  BedrockQuizApiGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: bedrock-quiz-api
+      Description: API Gateway for Bedrock Quiz Lambda function
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  # API Gateway Resource
+  QuizResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref BedrockQuizApiGateway
+      ParentId: !GetAtt BedrockQuizApiGateway.RootResourceId
+      PathPart: quiz
+
+  # API Gateway Method (POST)
+  QuizMethodPost:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref BedrockQuizApiGateway
+      ResourceId: !Ref QuizResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BedrockQueryLambdaFunction.Arn}/invocations"
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+
+  # API Gateway Method (OPTIONS for CORS)
+  QuizMethodOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref BedrockQuizApiGateway
+      ResourceId: !Ref QuizResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+            ResponseTemplates:
+              application/json: ""
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+
+  # API Gateway Deployment
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - QuizMethodPost
+      - QuizMethodOptions
+    Properties:
+      RestApiId: !Ref BedrockQuizApiGateway
+      StageName: prod
+
+  # Lambda Permission for API Gateway
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref BedrockQueryLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${BedrockQuizApiGateway}/*/*"
+
   # IAM Role for GitHub Actions Deployment
   DeploymentIAMRole:
     Type: AWS::IAM::Role
@@ -83,6 +172,13 @@ Resources:
                 Resource:
                   - "arn:aws:s3:::my-lambda-deployment-bucket-for-bedrock2"
                   - "arn:aws:s3:::my-lambda-deployment-bucket-for-bedrock2/*"
+              - Effect: Allow
+                Action:
+                  - apigateway:GET
+                  - apigateway:POST
+                  - apigateway:PUT
+                  - apigateway:DELETE
+                Resource: "*"
 
 Outputs:
   LambdaFunctionName:
@@ -92,3 +188,9 @@ Outputs:
   LambdaFunctionArn:
     Description: ARN of the Lambda function
     Value: !GetAtt BedrockQueryLambdaFunction.Arn
+
+  ApiGatewayUrl:
+    Description: API Gateway endpoint URL for the quiz function
+    Value: !Sub "https://${BedrockQuizApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/quiz"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiGatewayUrl"
