@@ -22,7 +22,7 @@ Resources:
             AllowedOrigins: ["*"]
             MaxAge: 3600
 
-  # S3 Bucket Policy (SIMPLIFIED)
+  # S3 Bucket Policy (MOST RELIABLE)
   FrontendS3BucketPolicy:
     Type: AWS::S3::BucketPolicy
     DependsOn: FrontendS3Bucket
@@ -34,8 +34,24 @@ Resources:
           - Sid: PublicReadGetObject
             Effect: Allow
             Principal: "*"
-            Action: "s3:GetObject"
-            Resource: !Sub "${FrontendS3Bucket}/*"
+            Action:
+              - "s3:GetObject"
+            Resource:
+              - !Join
+                - ""
+                - - "arn:aws:s3:::"
+                  - !Ref FrontendS3Bucket
+                  - "/*"
+          - Sid: PublicListBucket
+            Effect: Allow
+            Principal: "*"
+            Action:
+              - "s3:ListBucket"
+            Resource:
+              - !Join
+                - ""
+                - - "arn:aws:s3:::"
+                  - !Ref FrontendS3Bucket
 
   # IAM Role for Lambda Function
   BedrockQueryLambdaRole:
