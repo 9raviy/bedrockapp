@@ -1,7 +1,40 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: CloudFormation template to provision a Lambda function and IAM roles for querying Bedrock Claude model.
 
+Parameters:
+  DomainName:
+    Type: String
+    Description: Your custom domain name (e.g., yourdomain.com)
+    Default: ""
+
+  SubdomainName:
+    Type: String
+    Description: Subdomain for the quiz app (e.g., quiz)
+    Default: "quiz"
+
+  HostedZoneId:
+    Type: String
+    Description: Route 53 Hosted Zone ID for your domain (leave empty to skip custom domain)
+    Default: ""
+
+Conditions:
+  UseCustomDomain: !Not [!Equals [!Ref HostedZoneId, ""]]
+
 Resources:
+  # SSL Certificate for Custom Domain (NEW)
+  SSLCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Condition: UseCustomDomain
+    Properties:
+      DomainName: !Sub "${SubdomainName}.${DomainName}"
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Sub "${SubdomainName}.${DomainName}"
+          HostedZoneId: !Ref HostedZoneId
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-ssl-certificate"
+
   # S3 Bucket for Frontend Hosting
   FrontendS3Bucket:
     Type: AWS::S3::Bucket
@@ -201,6 +234,10 @@ Resources:
       - FrontendS3BucketPolicy
     Properties:
       DistributionConfig:
+        Aliases: !If
+          - UseCustomDomain
+          - [!Sub "${SubdomainName}.${DomainName}"]
+          - !Ref "AWS::NoValue"
         Comment: !Sub "CloudFront distribution for ${AWS::StackName}"
         DefaultCacheBehavior:
           TargetOriginId: S3Origin
@@ -223,6 +260,12 @@ Resources:
               HTTPSPort: 443
               OriginProtocolPolicy: http-only
         PriceClass: PriceClass_100
+        ViewerCertificate: !If
+          - UseCustomDomain
+          - AcmCertificateArn: !Ref SSLCertificate
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
         CustomErrorResponses:
           - ErrorCode: 404
             ResponseCode: 200
@@ -230,6 +273,61 @@ Resources:
           - ErrorCode: 403
             ResponseCode: 200
             ResponsePagePath: /index.html
+
+  # Route 53 Record Set for Custom Domain
+  ApiGatewayDomainName:
+    Type: AWS::ApiGateway::DomainName
+    Condition: UseCustomDomain
+    Properties:
+      DomainName: !Ref DomainName
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  ApiGatewayBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Condition: UseCustomDomain
+    Properties:
+      DomainName: !Ref ApiGatewayDomainName
+      RestApiId: !Ref BedrockQuizApiGateway
+      Stage: prod
+      BasePath: !Ref SubdomainName
+
+  # Route 53 A Record for Root Domain
+  RootDomainARecord:
+    Type: AWS::Route53::RecordSet
+    Condition: UseCustomDomain
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        HostedZoneId: !GetAtt ApiGatewayDomainName.RegionalHostedZoneId
+        DNSName: !GetAtt ApiGatewayDomainName.RegionalDomainName
+
+  # Route 53 A Record for Subdomain
+  SubdomainARecord:
+    Type: AWS::Route53::RecordSet
+    Condition: UseCustomDomain
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "${SubdomainName}.${DomainName}"
+      Type: A
+      AliasTarget:
+        HostedZoneId: !GetAtt ApiGatewayDomainName.RegionalHostedZoneId
+        DNSName: !GetAtt ApiGatewayDomainName.RegionalDomainName
+
+  # Route 53 DNS Record (NEW)
+  DNSRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: UseCustomDomain
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "${SubdomainName}.${DomainName}"
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt FrontendCloudFrontDistribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2 # CloudFront Hosted Zone ID (global constant)
 
 Outputs:
   LambdaFunctionName:
@@ -263,6 +361,20 @@ Outputs:
     Value: !Sub "https://${FrontendCloudFrontDistribution.DomainName}"
     Export:
       Name: !Sub "${AWS::StackName}-FrontendCloudFrontURL"
+
+  CustomDomainURL:
+    Description: Custom domain URL (if configured)
+    Condition: UseCustomDomain
+    Value: !Sub "https://${SubdomainName}.${DomainName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-CustomDomainURL"
+
+  SSLCertificateArn:
+    Description: SSL Certificate ARN (if created)
+    Condition: UseCustomDomain
+    Value: !Ref SSLCertificate
+    Export:
+      Name: !Sub "${AWS::StackName}-SSLCertificateArn"
 
   FrontendCloudFrontDistributionId:
     Description: CloudFront distribution ID for cache invalidation

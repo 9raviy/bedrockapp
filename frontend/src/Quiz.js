@@ -70,7 +70,7 @@ function Quiz() {
     if (!selectedAnswer && question) {
       return; // Don't submit if no answer selected
     }
-    
+
     await fetchQuestion({
       ...state,
       lastAnswer: selectedAnswer,

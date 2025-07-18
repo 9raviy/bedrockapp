@@ -255,17 +255,17 @@ body {
   .options-container {
     gap: 12px;
   }
-  
+
   .option-btn {
     padding: 18px 20px;
     font-size: 1em;
   }
-  
+
   .submit-btn {
     padding: 16px 30px;
     font-size: 1.1em;
   }
-  
+
   .feedback-result {
     font-size: 1.2em;
   }
