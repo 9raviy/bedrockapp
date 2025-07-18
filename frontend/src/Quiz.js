@@ -48,24 +48,52 @@ function Quiz() {
 
   return (
     <div className="quiz-container">
-      <div className="score">Score: {state.score}</div>
-      <div className="difficulty">Difficulty: {state.difficulty}</div>
-      <div className="question">{question}</div>
-      <form onSubmit={handleSubmit}>
-        <input
-          type="text"
-          value={answer}
-          onChange={(e) => setAnswer(e.target.value)}
-          placeholder="Your answer"
-          disabled={loading}
-          required
-        />
-        <button type="submit" disabled={loading || !answer}>
-          Submit
-        </button>
+      <div className="stats-container">
+        <div className="stat-card">
+          <div className="stat-label">Score</div>
+          <div className="stat-value">{state.score}</div>
+        </div>
+        <div className="stat-card difficulty-card">
+          <div className="stat-label">Difficulty</div>
+          <div className="stat-value">{state.difficulty}</div>
+        </div>
+      </div>
+
+      <div className="question">
+        {question || "Welcome! Click submit to get your first question."}
+      </div>
+
+      <form onSubmit={handleSubmit} className="answer-form">
+        <div className="input-container">
+          <input
+            type="text"
+            value={answer}
+            onChange={(e) => setAnswer(e.target.value)}
+            placeholder="Enter your answer here..."
+            disabled={loading}
+            required
+          />
+          <button
+            type="submit"
+            disabled={loading || (!answer && question)}
+            className="submit-btn"
+          >
+            {loading ? "Loading..." : question ? "Submit" : "Start Quiz"}
+          </button>
+        </div>
       </form>
-      {feedback && <div className="feedback">{feedback}</div>}
-      {loading && <div className="loading">Loading...</div>}
+
+      {feedback && (
+        <div
+          className={`feedback ${
+            feedback === "Correct!" ? "correct" : "incorrect"
+          }`}
+        >
+          {feedback}
+        </div>
+      )}
+
+      {loading && <div className="loading">Getting your next question</div>}
     </div>
   );
 }

@@ -77,3 +77,102 @@ jobs:
             --s3-bucket my-lambda-deployment-bucket-for-bedrock2 \
             --s3-key function.zip \
             --region ${{ secrets.AWS_REGION }}
+
+      # Step 9: Get API Gateway URL from CloudFormation outputs
+      - name: Get API Gateway URL
+        id: get-api-url
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name bedrock-query-stack \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiGatewayUrl`].OutputValue' \
+            --output text \
+            --region ${{ secrets.AWS_REGION }})
+          echo "API_URL=$API_URL" >> $GITHUB_OUTPUT
+
+      # Step 10: Install frontend dependencies
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install
+
+      # Step 11: Update API endpoint in frontend
+      - name: Update API endpoint
+        working-directory: frontend/src
+        run: |
+          sed -i 's|const LAMBDA_ENDPOINT = ".*";|const LAMBDA_ENDPOINT = "${{ steps.get-api-url.outputs.API_URL }}";|' api.js
+
+      # Step 12: Build frontend
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      # Step 13: Get S3 bucket name from CloudFormation outputs
+      - name: Get S3 bucket name
+        id: get-bucket-name
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          BUCKET_NAME=$(aws cloudformation describe-stacks \
+            --stack-name bedrock-query-stack \
+            --query 'Stacks[0].Outputs[?OutputKey==`FrontendS3BucketName`].OutputValue' \
+            --output text \
+            --region ${{ secrets.AWS_REGION }})
+          echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_OUTPUT
+
+      # Step 14: Deploy frontend to S3
+      - name: Deploy frontend to S3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        working-directory: frontend
+        run: |
+          aws s3 sync build/ s3://${{ steps.get-bucket-name.outputs.BUCKET_NAME }} --delete
+
+      # Step 15: Get CloudFront Distribution ID and invalidate cache
+      - name: Get CloudFront Distribution ID
+        id: get-distribution-id
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          CLOUDFRONT_URL=$(aws cloudformation describe-stacks \
+            --stack-name bedrock-query-stack \
+            --query 'Stacks[0].Outputs[?OutputKey==`FrontendCloudFrontURL`].OutputValue' \
+            --output text \
+            --region ${{ secrets.AWS_REGION }})
+          DISTRIBUTION_ID=$(echo $CLOUDFRONT_URL | sed 's|https://||' | sed 's|\.cloudfront\.net||')
+          echo "DISTRIBUTION_ID=$DISTRIBUTION_ID" >> $GITHUB_OUTPUT
+
+      # Step 16: Invalidate CloudFront cache
+      - name: Invalidate CloudFront cache
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ steps.get-distribution-id.outputs.DISTRIBUTION_ID }} \
+            --paths "/*"
+
+      # Step 17: Display deployment URLs
+      - name: Display deployment URLs
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          echo "✅ Deployment completed successfully!"
+          echo ""
+          echo "🔗 Application URLs:"
+          echo "  Frontend (CloudFront): $(aws cloudformation describe-stacks --stack-name bedrock-query-stack --query 'Stacks[0].Outputs[?OutputKey==\`FrontendCloudFrontURL\`].OutputValue' --output text --region ${{ secrets.AWS_REGION }})"
+          echo "  Frontend (S3): $(aws cloudformation describe-stacks --stack-name bedrock-query-stack --query 'Stacks[0].Outputs[?OutputKey==\`FrontendS3BucketWebsiteURL\`].OutputValue' --output text --region ${{ secrets.AWS_REGION }})"
+          echo "  API Gateway: ${{ steps.get-api-url.outputs.API_URL }}"
+          echo ""
+          echo "🎉 Your Adaptive Quiz App is now live!"

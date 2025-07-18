@@ -174,11 +174,95 @@ Resources:
                   - "arn:aws:s3:::my-lambda-deployment-bucket-for-bedrock2/*"
               - Effect: Allow
                 Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:DeleteObject
+                  - s3:PutObjectAcl
+                Resource:
+                  - !Sub "${FrontendS3Bucket}"
+                  - !Sub "${FrontendS3Bucket}/*"
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - cloudfront:CreateInvalidation
+                  - cloudfront:GetDistribution
+                  - cloudfront:ListDistributions
+                Resource: "*"
+              - Effect: Allow
+                Action:
                   - apigateway:GET
                   - apigateway:POST
                   - apigateway:PUT
                   - apigateway:DELETE
                 Resource: "*"
+
+  # S3 Bucket for Frontend Hosting
+  FrontendS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-frontend-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+
+  # S3 Bucket Policy for Public Read Access
+  FrontendS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendS3Bucket
+      PolicyDocument:
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Sub "${FrontendS3Bucket}/*"
+
+  # CloudFront Distribution for Frontend
+  FrontendCloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: !Sub "CloudFront distribution for ${AWS::StackName}"
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+        DefaultRootObject: index.html
+        Enabled: true
+        HttpVersion: http2
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt FrontendS3Bucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        PriceClass: PriceClass_100
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
 
 Outputs:
   LambdaFunctionName:
@@ -194,3 +278,21 @@ Outputs:
     Value: !Sub "https://${BedrockQuizApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/quiz"
     Export:
       Name: !Sub "${AWS::StackName}-ApiGatewayUrl"
+
+  FrontendS3BucketName:
+    Description: Name of the S3 bucket for frontend hosting
+    Value: !Ref FrontendS3Bucket
+    Export:
+      Name: !Sub "${AWS::StackName}-FrontendS3BucketName"
+
+  FrontendS3BucketWebsiteURL:
+    Description: S3 bucket website URL for the frontend
+    Value: !GetAtt FrontendS3Bucket.WebsiteURL
+    Export:
+      Name: !Sub "${AWS::StackName}-FrontendS3BucketWebsiteURL"
+
+  FrontendCloudFrontURL:
+    Description: CloudFront distribution URL for the frontend
+    Value: !Sub "https://${FrontendCloudFrontDistribution.DomainName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-FrontendCloudFrontURL"
