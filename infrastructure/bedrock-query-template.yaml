@@ -141,7 +141,7 @@ Resources:
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: false
             method.response.header.Access-Control-Allow-Headers: false
-            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Methods: false # ← Must be uppercase 'M'
 
   # API Gateway Method (OPTIONS for CORS)
   QuizMethodOptions:
@@ -168,7 +168,7 @@ Resources:
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: false
             method.response.header.Access-Control-Allow-Headers: false
-            method.response.header.Access-Control-Allow-Methods: false # ← Fixed: uppercase 'M'
+            method.response.header.Access-Control-Allow-Methods: false # ← Must be uppercase 'M'
 
   # API Gateway Deployment
   ApiGatewayDeployment:

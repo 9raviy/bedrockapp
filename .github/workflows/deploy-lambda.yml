@@ -49,55 +49,7 @@ jobs:
         run: |
           aws s3 cp function.zip s3://my-lambda-deployment-bucket-for-bedrock2/function.zip
 
-      # Step 7: Deploy CloudFormation Stack
-      - name: Deploy CloudFormation Stack
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-        working-directory: infrastructure
-        run: |
-          echo "🚀 Deploying CloudFormation stack..."
-
-          # Deploy the stack with a longer timeout
-          aws cloudformation deploy \
-            --template-file bedrock-query-template.yaml \
-            --stack-name bedrock-query-stack \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --region ${{ secrets.AWS_REGION }} \
-            --no-fail-on-empty-changeset \
-            || echo "Deploy command completed with warnings"
-
-          echo "⏳ Ensuring stack is in a stable state..."
-
-          # Wait for the stack to be in a complete state
-          for i in {1..10}; do
-            STATUS=$(aws cloudformation describe-stacks \
-              --stack-name bedrock-query-stack \
-              --region ${{ secrets.AWS_REGION }} \
-              --query 'Stacks[0].StackStatus' \
-              --output text)
-            
-            echo "Stack status: $STATUS"
-            
-            if [[ "$STATUS" == "CREATE_COMPLETE" || "$STATUS" == "UPDATE_COMPLETE" ]]; then
-              echo "✅ Stack is ready!"
-              break
-            elif [[ "$STATUS" == *"FAILED"* || "$STATUS" == *"ROLLBACK"* ]]; then
-              echo "❌ Stack deployment failed with status: $STATUS"
-              aws cloudformation describe-stack-events \
-                --stack-name bedrock-query-stack \
-                --region ${{ secrets.AWS_REGION }} \
-                --query 'StackEvents[?ResourceStatus==`CREATE_FAILED` || ResourceStatus==`UPDATE_FAILED`].[LogicalResourceId,ResourceStatus,ResourceStatusReason]' \
-                --output table
-              exit 1
-            else
-              echo "⏳ Waiting for stack (attempt $i/10)..."
-              sleep 30
-            fi
-          done
-
-      # Step 6.5: Handle rollback state
+      # Step 6.5: Handle rollback state (MOVED BEFORE DEPLOY)
       - name: Handle stack rollback state
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -133,203 +85,52 @@ jobs:
             echo "✅ Stack is in good state: $STATUS"
           fi
 
-      # Step 8: Deploy the Lambda function
-      - name: Deploy Lambda function
+      # Step 7: Deploy CloudFormation Stack (NOW RUNS AFTER CLEANUP)
+      - name: Deploy CloudFormation Stack
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
-        working-directory: backend
+        working-directory: infrastructure
         run: |
-          aws lambda update-function-code \
-            --function-name bedrock-query \
-            --s3-bucket my-lambda-deployment-bucket-for-bedrock2 \
-            --s3-key function.zip \
-            --region ${{ secrets.AWS_REGION }}
+          echo "🚀 Deploying CloudFormation stack..."
 
-      # Step 9: Get API Gateway URL from CloudFormation outputs
-      - name: Get API Gateway URL
-        id: get-api-url
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-        run: |
-          API_URL=$(aws cloudformation describe-stacks \
+          # Deploy the stack with a longer timeout
+          aws cloudformation deploy \
+            --template-file bedrock-query-template.yaml \
             --stack-name bedrock-query-stack \
-            --query 'Stacks[0].Outputs[?OutputKey==`ApiGatewayUrl`].OutputValue' \
-            --output text \
-            --region ${{ secrets.AWS_REGION }})
-          echo "API_URL=$API_URL" >> $GITHUB_OUTPUT
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region ${{ secrets.AWS_REGION }} \
+            --no-fail-on-empty-changeset \
+            || echo "Deploy command completed with warnings"
 
-      # Step 10: Install frontend dependencies
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm install
+          echo "⏳ Ensuring stack is in a stable state..."
 
-      # Step 11: Update API endpoint in frontend
-      - name: Update API endpoint
-        working-directory: frontend/src
-        run: |
-          sed -i 's|const LAMBDA_ENDPOINT = ".*";|const LAMBDA_ENDPOINT = "${{ steps.get-api-url.outputs.API_URL }}";|' api.js
-
-      # Step 12: Build frontend
-      - name: Build frontend
-        working-directory: frontend
-        run: |
-          echo "🏗️ Building React frontend..."
-          npm run build
-          echo "📁 Checking build output..."
-          ls -la build/
-          if [ ! -f "build/index.html" ]; then
-            echo "❌ Build failed - index.html not found"
-            exit 1
-          fi
-          echo "✅ Frontend build completed successfully"
-
-      # Step 13: Get S3 bucket name from CloudFormation outputs
-      - name: Get S3 bucket name
-        id: get-bucket-name
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-        run: |
-          echo "⏳ Waiting for stack to be fully deployed..."
-          aws cloudformation wait stack-update-complete --stack-name bedrock-query-stack --region ${{ secrets.AWS_REGION }} || true
-          aws cloudformation wait stack-create-complete --stack-name bedrock-query-stack --region ${{ secrets.AWS_REGION }} || true
-
-          echo "📋 Getting S3 bucket name..."
-          BUCKET_NAME=$(aws cloudformation describe-stacks \
-            --stack-name bedrock-query-stack \
-            --query 'Stacks[0].Outputs[?OutputKey==`FrontendS3BucketName`].OutputValue' \
-            --output text \
-            --region ${{ secrets.AWS_REGION }} 2>/dev/null || echo "")
-
-          # Improved validation
-          if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "None" ] || [ "$BUCKET_NAME" = "null" ] || [ "$BUCKET_NAME" = "[]" ]; then
-            echo "❌ Error: Frontend S3 bucket not found in stack outputs"
-            echo ""
-            echo "📋 Available stack outputs:"
-            aws cloudformation describe-stacks \
+          # Wait for the stack to be in a complete state
+          for i in {1..20}; do  # Increased from 10 to 20 attempts
+            STATUS=$(aws cloudformation describe-stacks \
               --stack-name bedrock-query-stack \
-              --query 'Stacks[0].Outputs[*].{Key:OutputKey,Value:OutputValue}' \
               --region ${{ secrets.AWS_REGION }} \
-              --output table || echo "Failed to get stack outputs"
-            echo ""
-            echo "🔍 This usually means the CloudFormation template is missing frontend resources."
-            echo "💡 Try deleting and redeploying the stack with the complete template."
-            exit 1
-          fi
-
-          echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_OUTPUT
-          echo "✅ Found S3 bucket: $BUCKET_NAME"
-
-      # Step 14: Deploy frontend to S3
-      - name: Deploy frontend to S3
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-        working-directory: frontend
-        run: |
-          echo "🚀 Deploying frontend to S3..."
-          echo "📁 Bucket: ${{ steps.get-bucket-name.outputs.BUCKET_NAME }}"
-
-          # Sync with proper content types
-          aws s3 sync build/ s3://${{ steps.get-bucket-name.outputs.BUCKET_NAME }} \
-            --delete \
-            --exact-timestamps \
-            --metadata-directive REPLACE \
-            --cache-control "max-age=31536000" \
-            --exclude "*.html" \
-            --exclude "service-worker.js"
-
-          # Upload HTML files with no-cache
-          aws s3 sync build/ s3://${{ steps.get-bucket-name.outputs.BUCKET_NAME }} \
-            --cache-control "no-cache, no-store, must-revalidate" \
-            --include "*.html" \
-            --include "service-worker.js"
-
-          echo "✅ Frontend deployed to S3"
-
-      # Step 15: Get CloudFront Distribution ID
-      - name: Get CloudFront Distribution ID
-        id: get-distribution-id
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-        run: |
-          echo "📋 Getting CloudFront distribution ID..."
-
-          # Get distribution ID directly from CloudFormation output
-          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
-            --stack-name bedrock-query-stack \
-            --query 'Stacks[0].Outputs[?OutputKey==`FrontendCloudFrontDistributionId`].OutputValue' \
-            --output text \
-            --region ${{ secrets.AWS_REGION }} 2>/dev/null || echo "")
-
-          if [ -z "$DISTRIBUTION_ID" ] || [ "$DISTRIBUTION_ID" = "None" ]; then
-            echo "⚠️ Warning: CloudFront distribution ID not found in outputs"
-            echo "🔍 Trying alternative method..."
+              --query 'Stacks[0].StackStatus' \
+              --output text)
             
-            # Fallback: extract from URL
-            CLOUDFRONT_URL=$(aws cloudformation describe-stacks \
-              --stack-name bedrock-query-stack \
-              --query 'Stacks[0].Outputs[?OutputKey==`FrontendCloudFrontURL`].OutputValue' \
-              --output text \
-              --region ${{ secrets.AWS_REGION }} 2>/dev/null || echo "")
+            echo "Stack status: $STATUS"
             
-            if [ -n "$CLOUDFRONT_URL" ] && [ "$CLOUDFRONT_URL" != "None" ]; then
-              DISTRIBUTION_ID=$(echo "$CLOUDFRONT_URL" | sed 's|https://||' | sed 's|\.cloudfront\.net.*||')
+            if [[ "$STATUS" == "CREATE_COMPLETE" || "$STATUS" == "UPDATE_COMPLETE" ]]; then
+              echo "✅ Stack is ready!"
+              break
+            elif [[ "$STATUS" == *"FAILED"* || "$STATUS" == *"ROLLBACK"* ]]; then
+              echo "❌ Stack deployment failed with status: $STATUS"
+              aws cloudformation describe-stack-events \
+                --stack-name bedrock-query-stack \
+                --region ${{ secrets.AWS_REGION }} \
+                --query 'StackEvents[?ResourceStatus==`CREATE_FAILED` || ResourceStatus==`UPDATE_FAILED`].[LogicalResourceId,ResourceStatus,ResourceStatusReason]' \
+                --output table
+              exit 1
+            else
+              echo "⏳ Waiting for stack (attempt $i/20)..."
+              sleep 30
             fi
-          fi
+          done
 
-          if [ -z "$DISTRIBUTION_ID" ] || [ "$DISTRIBUTION_ID" = "None" ]; then
-            echo "❌ Error: Could not determine CloudFront distribution ID"
-            echo "📋 Available outputs:"
-            aws cloudformation describe-stacks \
-              --stack-name bedrock-query-stack \
-              --query 'Stacks[0].Outputs[*].{Key:OutputKey,Value:OutputValue}' \
-              --region ${{ secrets.AWS_REGION }} \
-              --output table
-            exit 1
-          fi
-
-          echo "DISTRIBUTION_ID=$DISTRIBUTION_ID" >> $GITHUB_OUTPUT
-          echo "✅ Found CloudFront distribution ID: $DISTRIBUTION_ID"
-
-      # Step 16: Invalidate CloudFront cache
-      - name: Invalidate CloudFront cache
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-        run: |
-          echo "🔄 Creating CloudFront invalidation..."
-
-          INVALIDATION_ID=$(aws cloudfront create-invalidation \
-            --distribution-id ${{ steps.get-distribution-id.outputs.DISTRIBUTION_ID }} \
-            --paths "/*" \
-            --query 'Invalidation.Id' \
-            --output text)
-
-          echo "✅ CloudFront invalidation created: $INVALIDATION_ID"
-          echo "⏳ Cache invalidation may take 5-15 minutes to complete"
-
-      # Step 17: Display deployment URLs
-      - name: Display deployment URLs
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-        run: |
-          echo "✅ Deployment completed successfully!"
-          echo ""
-          echo "🔗 Application URLs:"
-          echo "  Frontend (CloudFront): $(aws cloudformation describe-stacks --stack-name bedrock-query-stack --query 'Stacks[0].Outputs[?OutputKey==\`FrontendCloudFrontURL\`].OutputValue' --output text --region ${{ secrets.AWS_REGION }})"
-          echo "  Frontend (S3): $(aws cloudformation describe-stacks --stack-name bedrock-query-stack --query 'Stacks[0].Outputs[?OutputKey==\`FrontendS3BucketWebsiteURL\`].OutputValue' --output text --region ${{ secrets.AWS_REGION }})"
-          echo "  API Gateway: ${{ steps.get-api-url.outputs.API_URL }}"
-          echo ""
-          echo "🎉 Your Adaptive Quiz App is now live!"
+      # Continue with Step 8, 9, etc...
