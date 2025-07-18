@@ -4,6 +4,7 @@ import { getNextQuestion } from "./api";
 const initialState = {
   lastQuestion: null,
   lastAnswer: null,
+  lastCorrectAnswer: null,
   score: 0,
   difficulty: 1,
   wasCorrect: null,
@@ -12,7 +13,9 @@ const initialState = {
 function Quiz() {
   const [state, setState] = useState(initialState);
   const [question, setQuestion] = useState("");
-  const [answer, setAnswer] = useState("");
+  const [options, setOptions] = useState([]);
+  const [correctAnswer, setCorrectAnswer] = useState("");
+  const [selectedAnswer, setSelectedAnswer] = useState("");
   const [feedback, setFeedback] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -35,10 +38,13 @@ function Quiz() {
       );
 
       setQuestion(res.nextQuestion);
+      setOptions(res.options || []);
+      setCorrectAnswer(res.correctAnswer || "");
       setFeedback(res.feedback || "");
       setState({
         ...payload,
         lastQuestion: res.nextQuestion,
+        lastCorrectAnswer: res.correctAnswer,
         score: res.score,
         difficulty: res.difficulty,
         wasCorrect:
@@ -47,7 +53,7 @@ function Quiz() {
           res.feedback &&
           res.feedback.result === "Correct",
       });
-      setAnswer("");
+      setSelectedAnswer("");
     } catch (error) {
       console.error("Error fetching question:", error);
       setFeedback({
@@ -61,10 +67,20 @@ function Quiz() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (!selectedAnswer && question) {
+      return; // Don't submit if no answer selected
+    }
+    
     await fetchQuestion({
       ...state,
-      lastAnswer: answer,
+      lastAnswer: selectedAnswer,
     });
+  }
+
+  function handleOptionSelect(option) {
+    // Extract the letter (A, B, C, D) from the option like "A) Yellow"
+    const letter = option.charAt(0);
+    setSelectedAnswer(letter);
   }
 
   return (
@@ -84,22 +100,32 @@ function Quiz() {
         {question || "Welcome! Click submit to get your first question."}
       </div>
 
+      {/* Multiple Choice Options */}
+      {options.length > 0 && (
+        <div className="options-container">
+          {options.map((option, index) => (
+            <button
+              key={index}
+              className={`option-btn ${
+                selectedAnswer === option.charAt(0) ? "selected" : ""
+              }`}
+              onClick={() => handleOptionSelect(option)}
+              disabled={loading}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="answer-form">
         <div className="input-container">
-          <input
-            type="text"
-            value={answer}
-            onChange={(e) => setAnswer(e.target.value)}
-            placeholder="Enter your answer here..."
-            disabled={loading}
-            required
-          />
           <button
             type="submit"
-            disabled={loading || (!answer && question)}
+            disabled={loading || (!selectedAnswer && question)}
             className="submit-btn"
           >
-            {loading ? "Loading..." : question ? "Submit" : "Start Quiz"}
+            {loading ? "Loading..." : question ? "Submit Answer" : "Start Quiz"}
           </button>
         </div>
       </form>

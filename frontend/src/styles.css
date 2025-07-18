@@ -92,51 +92,34 @@ body {
 }
 
 .answer-form {
-  margin: 30px 0;
+  margin: 20px 0;
 }
 
 .input-container {
   display: flex;
-  gap: 15px;
+  justify-content: center;
   margin-bottom: 20px;
 }
 
-input[type="text"] {
-  flex: 1;
-  padding: 15px 20px;
-  border: 2px solid #e1e5e9;
-  border-radius: 12px;
-  font-size: 1.1em;
-  transition: all 0.3s ease;
-  outline: none;
-}
-
-input[type="text"]:focus {
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-input[type="text"]:disabled {
-  background-color: #f8f9fa;
-  cursor: not-allowed;
-}
+/* Removed old text input styles - now using multiple choice */
 
 .submit-btn {
-  padding: 15px 30px;
+  padding: 18px 40px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
-  border-radius: 12px;
-  font-size: 1.1em;
+  border-radius: 15px;
+  font-size: 1.2em;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  min-width: 120px;
+  min-width: 160px;
+  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
 }
 
 .submit-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+  transform: translateY(-3px);
+  box-shadow: 0 15px 30px rgba(102, 126, 234, 0.4);
 }
 
 .submit-btn:disabled {
@@ -147,13 +130,12 @@ input[type="text"]:disabled {
 }
 
 .feedback {
-  margin-top: 25px;
-  padding: 20px;
-  border-radius: 12px;
+  margin-top: 30px;
+  padding: 25px;
+  border-radius: 15px;
   font-size: 1.1em;
-  font-weight: 600;
-  text-align: center;
   animation: slideIn 0.5s ease-out;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
 }
 
 .feedback.correct {
@@ -169,70 +151,83 @@ input[type="text"]:disabled {
 }
 
 .feedback-result {
-  font-size: 1.2em;
-  margin-bottom: 10px;
+  font-size: 1.4em;
+  font-weight: bold;
+  margin-bottom: 15px;
+  text-align: center;
 }
 
 .feedback-explanation {
-  font-size: 0.95em;
+  font-size: 1em;
   font-weight: 400;
-  line-height: 1.5;
-  margin-top: 10px;
-  padding: 15px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  line-height: 1.6;
+  margin-top: 15px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
   text-align: left;
+  border-left: 4px solid rgba(255, 255, 255, 0.3);
 }
 
-.loading {
-  text-align: center;
-  margin-top: 25px;
-  color: #667eea;
+/* Multiple Choice Options Styles */
+.options-container {
+  margin: 30px 0;
+  display: grid;
+  gap: 15px;
+  grid-template-columns: 1fr;
+}
+
+.option-btn {
+  padding: 20px 25px;
+  background: #f8f9fa;
+  border: 2px solid #e1e5e9;
+  border-radius: 15px;
   font-size: 1.1em;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
+  font-weight: 500;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: left;
+  position: relative;
+  overflow: hidden;
 }
 
-.loading::after {
-  content: "";
-  width: 20px;
-  height: 20px;
-  border: 2px solid #667eea;
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
+.option-btn:hover:not(:disabled) {
+  background: #f0f2f5;
+  border-color: #667eea;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(102, 126, 234, 0.15);
 }
 
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.option-btn.selected {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: #667eea;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
 }
 
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateX(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+.option-btn.selected::after {
+  content: "✓";
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.3em;
+  font-weight: bold;
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+.option-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
+.option-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
+}
+
+/* Responsive updates for mobile */
 @media (max-width: 768px) {
   .app-container {
     margin: 10px;
@@ -255,5 +250,23 @@ input[type="text"]:disabled {
 
   .input-container {
     flex-direction: column;
+  }
+
+  .options-container {
+    gap: 12px;
+  }
+  
+  .option-btn {
+    padding: 18px 20px;
+    font-size: 1em;
+  }
+  
+  .submit-btn {
+    padding: 16px 30px;
+    font-size: 1.1em;
+  }
+  
+  .feedback-result {
+    font-size: 1.2em;
   }
 }
