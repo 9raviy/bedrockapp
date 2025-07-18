@@ -208,12 +208,31 @@ jobs:
           echo "✅ Found API URL: $API_URL"
           echo "🔄 Updating api.js with correct endpoint..."
 
-          # Update the API endpoint in api.js
-          sed -i "s|const LAMBDA_ENDPOINT = \".*\";|const LAMBDA_ENDPOINT = \"$API_URL\";|g" src/api.js
+          # Update the API endpoint in api.js using Node.js for reliable replacement
+          node -e "
+            const fs = require('fs');
+            const filePath = 'src/api.js';
+            let content = fs.readFileSync(filePath, 'utf8');
+            
+            // Replace the LAMBDA_ENDPOINT definition (handles both single and multi-line formats)
+            content = content.replace(
+              /const LAMBDA_ENDPOINT\s*=\s*[\"'][^\"']*[\"'];?/,
+              \`const LAMBDA_ENDPOINT = \"$API_URL\";\`
+            );
+            
+            // Also handle multi-line format
+            content = content.replace(
+              /const LAMBDA_ENDPOINT\s*=\s*\n\s*[\"'][^\"']*[\"'];?/,
+              \`const LAMBDA_ENDPOINT = \"$API_URL\";\`
+            );
+            
+            fs.writeFileSync(filePath, content);
+            console.log('✅ API endpoint updated successfully');
+          "
 
           # Verify the change
           echo "📋 Updated api.js content:"
-          grep "LAMBDA_ENDPOINT" src/api.js
+          grep -A 1 "LAMBDA_ENDPOINT" src/api.js
 
           echo "✅ API endpoint updated successfully"
 
