@@ -21,7 +21,7 @@ Conditions:
   UseCustomDomain: !Not [!Equals [!Ref HostedZoneId, ""]]
 
 Resources:
-  # SSL Certificate for Custom Domain (NEW)
+  # SSL Certificate for Custom Domain (SIMPLIFIED)
   SSLCertificate:
     Type: AWS::CertificateManager::Certificate
     Condition: UseCustomDomain
@@ -274,50 +274,7 @@ Resources:
             ResponseCode: 200
             ResponsePagePath: /index.html
 
-  # Route 53 Record Set for Custom Domain
-  ApiGatewayDomainName:
-    Type: AWS::ApiGateway::DomainName
-    Condition: UseCustomDomain
-    Properties:
-      DomainName: !Ref DomainName
-      EndpointConfiguration:
-        Types:
-          - REGIONAL
-
-  ApiGatewayBasePathMapping:
-    Type: AWS::ApiGateway::BasePathMapping
-    Condition: UseCustomDomain
-    Properties:
-      DomainName: !Ref ApiGatewayDomainName
-      RestApiId: !Ref BedrockQuizApiGateway
-      Stage: prod
-      BasePath: !Ref SubdomainName
-
-  # Route 53 A Record for Root Domain
-  RootDomainARecord:
-    Type: AWS::Route53::RecordSet
-    Condition: UseCustomDomain
-    Properties:
-      HostedZoneId: !Ref HostedZoneId
-      Name: !Ref DomainName
-      Type: A
-      AliasTarget:
-        HostedZoneId: !GetAtt ApiGatewayDomainName.RegionalHostedZoneId
-        DNSName: !GetAtt ApiGatewayDomainName.RegionalDomainName
-
-  # Route 53 A Record for Subdomain
-  SubdomainARecord:
-    Type: AWS::Route53::RecordSet
-    Condition: UseCustomDomain
-    Properties:
-      HostedZoneId: !Ref HostedZoneId
-      Name: !Sub "${SubdomainName}.${DomainName}"
-      Type: A
-      AliasTarget:
-        HostedZoneId: !GetAtt ApiGatewayDomainName.RegionalHostedZoneId
-        DNSName: !GetAtt ApiGatewayDomainName.RegionalDomainName
-
-  # Route 53 DNS Record (NEW)
+  # Route 53 DNS Record for Frontend (NEW)
   DNSRecord:
     Type: AWS::Route53::RecordSet
     Condition: UseCustomDomain
