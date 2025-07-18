@@ -50,38 +50,54 @@ exports.handler = async (event) => {
     let answerFeedback = null;
 
     if (lastQuestion && lastAnswer) {
+      console.log("Checking answer for question:", lastQuestion);
+      console.log("User's answer:", lastAnswer);
+      
       // Ask Bedrock to check the answer
-      const checkPrompt = `Question: ${lastQuestion}\nUser's Answer: ${lastAnswer}\nIs this correct? Reply "true" or "false".`;
+      const checkPrompt = `Question: ${lastQuestion}\nUser's Answer: ${lastAnswer}\n\nPlease respond with exactly "CORRECT" if the answer is right, or "INCORRECT" if the answer is wrong. Do not include any other text in your response.`;
       const checkResponse = await bedrockClient.queryBedrock(checkPrompt);
-      const isCorrect = (checkResponse.response || "")
-        .toLowerCase()
-        .includes("true");
+      console.log("Answer check response:", checkResponse);
+      
+      const responseText = (checkResponse.response || "").trim().toUpperCase();
+      // More robust answer checking - look for "CORRECT" anywhere in the response
+      const isCorrect = responseText.includes("CORRECT") || 
+                       responseText.includes("TRUE") || 
+                       responseText.includes("RIGHT");
+      
+      console.log("Response text:", responseText);
+      console.log("Is answer correct?", isCorrect);
 
       if (isCorrect) {
-        answerFeedback = "Correct!";
+        answerFeedback = {
+          result: "Correct",
+          explanation: "Well done! That's the correct answer."
+        };
         updatedScore += 1;
         updatedDifficulty += 1; // Increase difficulty
+        console.log("Answer was correct, updated score:", updatedScore);
       } else {
+        console.log("Answer was incorrect, getting explanation...");
         // Get explanation for incorrect answer
         const explanationPrompt = `Question: ${lastQuestion}\nUser's Answer: ${lastAnswer}\nThis answer is incorrect. Please provide a brief explanation of why it's wrong and what the correct answer should be. Keep it concise and educational.`;
         const explanationResponse = await bedrockClient.queryBedrock(
           explanationPrompt
         );
+        console.log("Explanation response:", explanationResponse);
+        
         answerFeedback = {
           result: "Incorrect",
           explanation:
             explanationResponse.response || "No explanation available.",
         };
+        console.log("Final answerFeedback object:", answerFeedback);
+        
         // Optionally decrease difficulty or keep the same
         updatedDifficulty = Math.max(1, updatedDifficulty - 1);
       }
     }
 
     // Build prompt for next question
-    const isCorrectAnswer =
-      answerFeedback === "Correct!" ||
-      (typeof answerFeedback === "object" &&
-        answerFeedback.result === "Correct");
+    const isCorrectAnswer = answerFeedback && answerFeedback.result === "Correct";
     const quizPrompt = buildQuizPrompt(
       updatedDifficulty,
       lastQuestion,
@@ -90,15 +106,19 @@ exports.handler = async (event) => {
     );
     const quizResponse = await bedrockClient.queryBedrock(quizPrompt);
 
+    const finalResponse = {
+      nextQuestion: quizResponse.response,
+      score: updatedScore,
+      difficulty: updatedDifficulty,
+      feedback: answerFeedback,
+    };
+    
+    console.log("Final response being sent:", JSON.stringify(finalResponse, null, 2));
+
     return {
       statusCode: 200,
       headers: corsHeaders,
-      body: JSON.stringify({
-        nextQuestion: quizResponse.response,
-        score: updatedScore,
-        difficulty: updatedDifficulty,
-        feedback: answerFeedback,
-      }),
+      body: JSON.stringify(finalResponse),
     };
   } catch (error) {
     console.error("Error querying Bedrock:", error);

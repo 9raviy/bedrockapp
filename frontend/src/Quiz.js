@@ -27,6 +27,10 @@ function Quiz() {
     try {
       const res = await getNextQuestion(payload);
       console.log("API response:", res); // Debug logging
+      console.log("Feedback type:", typeof res.feedback);
+      console.log("Feedback value:", res.feedback);
+      console.log("Feedback stringified:", JSON.stringify(res.feedback, null, 2));
+      
       setQuestion(res.nextQuestion);
       setFeedback(res.feedback || "");
       setState({
