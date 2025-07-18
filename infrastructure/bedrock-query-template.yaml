@@ -22,32 +22,20 @@ Resources:
             AllowedOrigins: ["*"]
             MaxAge: 3600
 
-  # S3 Bucket Policy for Public Read Access (Fixed)
+  # S3 Bucket Policy (SIMPLIFIED)
   FrontendS3BucketPolicy:
     Type: AWS::S3::BucketPolicy
-    DependsOn: FrontendS3Bucket # Explicit dependency
+    DependsOn: FrontendS3Bucket
     Properties:
       Bucket: !Ref FrontendS3Bucket
       PolicyDocument:
-        Version: "2012-10-17" # Added version
+        Version: "2012-10-17"
         Statement:
           - Sid: PublicReadGetObject
             Effect: Allow
             Principal: "*"
-            Action: "s3:GetObject" # Quoted action
+            Action: "s3:GetObject"
             Resource: !Sub "${FrontendS3Bucket}/*"
-          - Sid: PublicReadBucket # Additional permission for listing
-            Effect: Allow
-            Principal: "*"
-            Action: "s3:GetBucketLocation"
-            Resource: !Ref FrontendS3Bucket
-
-  # CloudFront Origin Access Identity
-  CloudFrontOriginAccessIdentity:
-    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
-    Properties:
-      CloudFrontOriginAccessIdentityConfig:
-        Comment: !Sub "OAI for ${AWS::StackName}"
 
   # IAM Role for Lambda Function
   BedrockQueryLambdaRole:
@@ -201,13 +189,8 @@ Resources:
         DefaultCacheBehavior:
           TargetOriginId: S3Origin
           ViewerProtocolPolicy: redirect-to-https
-          AllowedMethods:
-            - GET
-            - HEAD
-            - OPTIONS
-          CachedMethods:
-            - GET
-            - HEAD
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
           ForwardedValues:
             QueryString: false
             Cookies:
@@ -219,8 +202,10 @@ Resources:
         Origins:
           - Id: S3Origin
             DomainName: !GetAtt FrontendS3Bucket.RegionalDomainName
-            S3OriginConfig:
-              OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${CloudFrontOriginAccessIdentity}"
+            CustomOriginConfig:
+              HTTPPort: 80
+              HTTPSPort: 443
+              OriginProtocolPolicy: http-only
         PriceClass: PriceClass_100
         CustomErrorResponses:
           - ErrorCode: 404
