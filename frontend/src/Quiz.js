@@ -24,18 +24,30 @@ function Quiz() {
 
   async function fetchQuestion(payload) {
     setLoading(true);
-    const res = await getNextQuestion(payload);
-    setQuestion(res.nextQuestion);
-    setFeedback(res.feedback || "");
-    setState({
-      ...payload,
-      lastQuestion: res.nextQuestion,
-      score: res.score,
-      difficulty: res.difficulty,
-      wasCorrect: res.feedback === "Correct!",
-    });
-    setAnswer("");
-    setLoading(false);
+    try {
+      const res = await getNextQuestion(payload);
+      setQuestion(res.nextQuestion);
+      setFeedback(res.feedback || "");
+      setState({
+        ...payload,
+        lastQuestion: res.nextQuestion,
+        score: res.score,
+        difficulty: res.difficulty,
+        wasCorrect:
+          res.feedback === "Correct!" ||
+          (typeof res.feedback === "object" &&
+            res.feedback.result === "Correct"),
+      });
+      setAnswer("");
+    } catch (error) {
+      console.error("Error fetching question:", error);
+      setFeedback({
+        result: "Error",
+        explanation: "Failed to load question. Please try again.",
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleSubmit(e) {
@@ -86,10 +98,24 @@ function Quiz() {
       {feedback && (
         <div
           className={`feedback ${
-            feedback === "Correct!" ? "correct" : "incorrect"
+            feedback === "Correct!" ||
+            (typeof feedback === "object" && feedback.result === "Correct")
+              ? "correct"
+              : "incorrect"
           }`}
         >
-          {feedback}
+          {typeof feedback === "string" ? (
+            feedback
+          ) : (
+            <div>
+              <div className="feedback-result">{feedback.result}</div>
+              {feedback.explanation && (
+                <div className="feedback-explanation">
+                  {feedback.explanation}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

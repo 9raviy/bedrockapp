@@ -56,22 +56,37 @@ exports.handler = async (event) => {
       const isCorrect = (checkResponse.response || "")
         .toLowerCase()
         .includes("true");
-      answerFeedback = isCorrect ? "Correct!" : "Incorrect.";
+
       if (isCorrect) {
+        answerFeedback = "Correct!";
         updatedScore += 1;
         updatedDifficulty += 1; // Increase difficulty
       } else {
+        // Get explanation for incorrect answer
+        const explanationPrompt = `Question: ${lastQuestion}\nUser's Answer: ${lastAnswer}\nThis answer is incorrect. Please provide a brief explanation of why it's wrong and what the correct answer should be. Keep it concise and educational.`;
+        const explanationResponse = await bedrockClient.queryBedrock(
+          explanationPrompt
+        );
+        answerFeedback = {
+          result: "Incorrect",
+          explanation:
+            explanationResponse.response || "No explanation available.",
+        };
         // Optionally decrease difficulty or keep the same
         updatedDifficulty = Math.max(1, updatedDifficulty - 1);
       }
     }
 
     // Build prompt for next question
+    const isCorrectAnswer =
+      answerFeedback === "Correct!" ||
+      (typeof answerFeedback === "object" &&
+        answerFeedback.result === "Correct");
     const quizPrompt = buildQuizPrompt(
       updatedDifficulty,
       lastQuestion,
       lastAnswer,
-      answerFeedback === "Correct!"
+      isCorrectAnswer
     );
     const quizResponse = await bedrockClient.queryBedrock(quizPrompt);
 
