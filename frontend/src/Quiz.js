@@ -26,11 +26,14 @@ function Quiz() {
     setLoading(true);
     try {
       const res = await getNextQuestion(payload);
-      console.log("API response:", res); // Debug logging
+      console.log("API response:", res);
       console.log("Feedback type:", typeof res.feedback);
       console.log("Feedback value:", res.feedback);
-      console.log("Feedback stringified:", JSON.stringify(res.feedback, null, 2));
-      
+      console.log(
+        "Feedback stringified:",
+        JSON.stringify(res.feedback, null, 2)
+      );
+
       setQuestion(res.nextQuestion);
       setFeedback(res.feedback || "");
       setState({
@@ -39,10 +42,10 @@ function Quiz() {
         score: res.score,
         difficulty: res.difficulty,
         wasCorrect:
-          res.feedback === "Correct!" ||
-          (typeof res.feedback === "object" &&
-            res.feedback &&
-            res.feedback.result === "Correct"),
+          // Fixed: Only check for object feedback with result "Correct"
+          typeof res.feedback === "object" &&
+          res.feedback &&
+          res.feedback.result === "Correct",
       });
       setAnswer("");
     } catch (error) {
@@ -104,10 +107,10 @@ function Quiz() {
       {feedback && (
         <div
           className={`feedback ${
-            feedback === "Correct!" ||
-            (typeof feedback === "object" &&
-              feedback &&
-              feedback.result === "Correct")
+            // Fixed: Check for object feedback with result "Correct"
+            typeof feedback === "object" &&
+            feedback &&
+            feedback.result === "Correct"
               ? "correct"
               : "incorrect"
           }`}
