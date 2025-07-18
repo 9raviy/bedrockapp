@@ -74,3 +74,4 @@ const queryBedrock = async (inputText) => {
 };
 
 module.exports = { queryBedrock };
+//hello
