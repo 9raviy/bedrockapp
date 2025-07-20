@@ -2,23 +2,30 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: CloudFormation template to provision a Lambda function and IAM roles for querying Bedrock Claude model.
 
 Parameters:
+  Environment:
+    Type: String
+    Description: Environment name (prod, dev, staging)
+    Default: "prod"
+    AllowedValues: ["prod", "dev", "staging"]
+
   DomainName:
     Type: String
     Description: Your custom domain name (e.g., yourdomain.com)
-    Default: ""
+    Default: "hexmi.com"
 
   SubdomainName:
     Type: String
-    Description: Subdomain for the quiz app (e.g., quiz)
+    Description: Subdomain for the quiz app (e.g., quiz, dev-quiz)
     Default: "quiz"
 
   HostedZoneId:
     Type: String
-    Description: Route 53 Hosted Zone ID for your domain (leave empty to skip custom domain)
-    Default: ""
+    Description: Route 53 Hosted Zone ID for your domain
+    Default: "Z01335492T06E59B8E8ZZ" # Your hexmi.com hosted zone ID
 
 Conditions:
   UseCustomDomain: !Not [!Equals [!Ref HostedZoneId, ""]]
+  IsProduction: !Equals [!Ref Environment, "prod"]
 
 Resources:
   # NOTE: SSL Certificate for custom domains requires manual setup in us-east-1
@@ -215,16 +222,44 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${BedrockQuizApiGateway}/*/*"
 
-  # CloudFront Distribution for Frontend
+  # SSL Certificate (Required for custom domain)
+  SSLCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Condition: UseCustomDomain
+    Properties:
+      DomainName: !If
+        - IsProduction
+        - !Ref DomainName # hexmi.com for production
+        - !Sub "${SubdomainName}.${DomainName}" # quiz.hexmi.com for dev
+      SubjectAlternativeNames:
+        - !Sub "${SubdomainName}.${DomainName}" # Always include quiz.hexmi.com
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref DomainName
+          HostedZoneId: !Ref HostedZoneId
+        - DomainName: !Sub "${SubdomainName}.${DomainName}"
+          HostedZoneId: !Ref HostedZoneId
+
+  # CloudFront Distribution (Updated for custom domain)
   FrontendCloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
-    DependsOn:
-      - FrontendS3Bucket
-      - FrontendS3BucketPolicy
     Properties:
       DistributionConfig:
-        # Removed custom domain aliases - will use CloudFront default domain
-        Comment: !Sub "CloudFront distribution for ${AWS::StackName}"
+        Aliases: !If
+          - UseCustomDomain
+          - !If
+            - IsProduction
+            - [!Ref DomainName, !Sub "${SubdomainName}.${DomainName}"] # Both hexmi.com and quiz.hexmi.com
+            - [!Sub "${SubdomainName}.${DomainName}"] # Only quiz.hexmi.com for dev
+          - !Ref AWS::NoValue
+
+        ViewerCertificate: !If
+          - UseCustomDomain
+          - AcmCertificateArn: !Ref SSLCertificate
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+
         DefaultCacheBehavior:
           TargetOriginId: S3Origin
           ViewerProtocolPolicy: redirect-to-https
@@ -247,8 +282,6 @@ Resources:
               OriginProtocolPolicy: http-only
         PriceClass: PriceClass_100
         # Use CloudFront default certificate instead of custom SSL
-        ViewerCertificate:
-          CloudFrontDefaultCertificate: true
         CustomErrorResponses:
           - ErrorCode: 404
             ResponseCode: 200
@@ -257,17 +290,28 @@ Resources:
             ResponseCode: 200
             ResponsePagePath: /index.html
 
-  # Route 53 DNS Record for Frontend (DISABLED - requires custom SSL)
-  # DNSRecord:
-  #   Type: AWS::Route53::RecordSet
-  #   Condition: UseCustomDomain
-  #   Properties:
-  #     HostedZoneId: !Ref HostedZoneId
-  #     Name: !Sub "${SubdomainName}.${DomainName}"
-  #     Type: A
-  #     AliasTarget:
-  #       DNSName: !GetAtt FrontendCloudFrontDistribution.DomainName
-  #       HostedZoneId: Z2FDTNDATAQYW2 # CloudFront Hosted Zone ID (global constant)
+  # Route 53 DNS Records
+  DNSRecordMain:
+    Type: AWS::Route53::RecordSet
+    Condition: IsProduction
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName # hexmi.com
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt FrontendCloudFrontDistribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+
+  DNSRecordSubdomain:
+    Type: AWS::Route53::RecordSet
+    Condition: UseCustomDomain
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "${SubdomainName}.${DomainName}" # quiz.hexmi.com
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt FrontendCloudFrontDistribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
 
 Outputs:
   LambdaFunctionName:
