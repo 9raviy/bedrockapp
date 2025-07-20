@@ -1,7 +1,0 @@
-{
-  "httpMethod": "POST",
-  "body": "{\"lastQuestion\":null,\"lastAnswer\":null,\"score\":0,\"difficulty\":1}",
-  "headers": {
-    "Content-Type": "application/json"
-  }
-}

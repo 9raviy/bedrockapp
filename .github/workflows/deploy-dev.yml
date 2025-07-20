@@ -1,0 +1,280 @@
+name: Deploy to Development Environment
+
+on:
+  push:
+    branches:
+      - develop # Trigger on pushes to develop branch
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: development
+
+    steps:
+      # Step 1: Check out the code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Set up Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20"
+
+      # Step 3: Load environment configuration
+      - name: Load Development Configuration
+        run: |
+          echo "📋 Loading development environment configuration..."
+          CONFIG=$(cat config/environments/dev.json)
+          
+          echo "PROJECT_NAME=$(echo $CONFIG | jq -r '.projectName')" >> $GITHUB_ENV
+          echo "ENVIRONMENT=$(echo $CONFIG | jq -r '.environment')" >> $GITHUB_ENV
+          echo "DOMAIN_NAME=$(echo $CONFIG | jq -r '.domain.domainName')" >> $GITHUB_ENV
+          echo "SUBDOMAIN_NAME=$(echo $CONFIG | jq -r '.domain.subdomainName')" >> $GITHUB_ENV
+          echo "HOSTED_ZONE_ID=$(echo $CONFIG | jq -r '.domain.hostedZoneId')" >> $GITHUB_ENV
+          echo "LAMBDA_TIMEOUT=$(echo $CONFIG | jq -r '.backend.timeout')" >> $GITHUB_ENV
+          echo "LAMBDA_MEMORY=$(echo $CONFIG | jq -r '.backend.memory')" >> $GITHUB_ENV
+          echo "STACK_NAME=$(echo $CONFIG | jq -r '.infrastructure.stackName')" >> $GITHUB_ENV
+          
+          echo "✅ Configuration loaded for environment: $ENVIRONMENT"
+
+      # Step 4: Install backend dependencies
+      - name: Install dependencies
+        working-directory: backend
+        run: npm install
+
+      # Step 5: Zip the Lambda function code
+      - name: Zip Lambda function
+        working-directory: backend
+        run: zip -r function.zip . -x "*.git*" "node_modules/aws-sdk/*"
+
+      # Step 6: Upload the zip file to S3
+      - name: Upload to S3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        working-directory: backend
+        run: |
+          aws s3 cp function.zip s3://my-lambda-deployment-bucket-for-bedrock2/function.zip
+
+      # Step 7: Handle stack rollback state
+      - name: Handle stack rollback state
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          echo "🔍 Checking stack status for: $STACK_NAME"
+
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --region ${{ secrets.AWS_REGION }} \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "STACK_NOT_EXISTS")
+
+          echo "Current stack status: $STATUS"
+
+          if [[ "$STATUS" == *"ROLLBACK_COMPLETE"* ]] || [[ "$STATUS" == *"FAILED"* ]]; then
+            echo "⚠️ Stack is in failed state: $STATUS"
+            echo "🗑️ Deleting failed stack..."
+            aws cloudformation delete-stack \
+              --stack-name $STACK_NAME \
+              --region ${{ secrets.AWS_REGION }}
+            
+            echo "⏳ Waiting for stack deletion..."
+            aws cloudformation wait stack-delete-complete \
+              --stack-name $STACK_NAME \
+              --region ${{ secrets.AWS_REGION }}
+            
+            echo "✅ Failed stack deleted. Ready for fresh deployment."
+          elif [[ "$STATUS" == "STACK_NOT_EXISTS" ]]; then
+            echo "✅ No existing stack found. Ready for fresh deployment."
+          else
+            echo "✅ Stack is in good state: $STATUS"
+          fi
+
+      # Step 8: Deploy SSL Certificate in us-east-1
+      - name: Deploy SSL Certificate in us-east-1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        working-directory: infrastructure
+        run: |
+          echo "🔒 Deploying SSL Certificate for development in us-east-1..."
+          
+          aws cloudformation deploy \
+            --template-file ssl-certificate-template.yaml \
+            --stack-name ${PROJECT_NAME}-${ENVIRONMENT}-ssl-certificate \
+            --capabilities CAPABILITY_IAM \
+            --region us-east-1 \
+            --parameter-overrides \
+              DomainName=${DOMAIN_NAME} \
+              SubdomainName=${SUBDOMAIN_NAME} \
+              HostedZoneId=${HOSTED_ZONE_ID}
+
+      # Step 9: Deploy CloudFormation Stack
+      - name: Deploy CloudFormation Stack
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        working-directory: infrastructure
+        run: |
+          echo "🚀 Deploying development stack: $STACK_NAME"
+          
+          # Get SSL Certificate ARN from us-east-1
+          SSL_CERT_ARN=$(aws cloudformation describe-stacks \
+            --stack-name ${PROJECT_NAME}-${ENVIRONMENT}-ssl-certificate \
+            --region us-east-1 \
+            --query 'Stacks[0].Outputs[?OutputKey==`SSLCertificateArn`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -z "$SSL_CERT_ARN" ]; then
+            echo "⚠️ SSL Certificate not found - deploying without custom domain"
+            SSL_CERT_ARN=""
+          else
+            echo "🔒 Using SSL Certificate: $SSL_CERT_ARN"
+          fi
+          
+          # Deploy the main stack
+          aws cloudformation deploy \
+            --template-file bedrock-query-template.yaml \
+            --stack-name $STACK_NAME \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region ${{ secrets.AWS_REGION }} \
+            --parameter-overrides \
+              ProjectName=${PROJECT_NAME} \
+              Environment=${ENVIRONMENT} \
+              DomainName=${DOMAIN_NAME} \
+              SubdomainName=${SUBDOMAIN_NAME} \
+              HostedZoneId=${HOSTED_ZONE_ID} \
+              SSLCertificateArn=${SSL_CERT_ARN} \
+              LambdaTimeout=${LAMBDA_TIMEOUT} \
+              LambdaMemory=${LAMBDA_MEMORY} \
+            --no-fail-on-empty-changeset
+
+      # Step 10: Update Lambda function code
+      - name: Update Lambda function code
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          echo "🔄 Updating Lambda function code..."
+
+          aws lambda update-function-code \
+            --function-name ${PROJECT_NAME}-${ENVIRONMENT}-backend \
+            --s3-bucket my-lambda-deployment-bucket-for-bedrock2 \
+            --s3-key function.zip \
+            --region ${{ secrets.AWS_REGION }}
+
+          echo "⏳ Waiting for Lambda function to be updated..."
+          aws lambda wait function-updated \
+            --function-name ${PROJECT_NAME}-${ENVIRONMENT}-backend \
+            --region ${{ secrets.AWS_REGION }}
+
+          echo "✅ Lambda function code updated successfully"
+
+      # Step 11: Build and deploy frontend
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Update API endpoint in frontend
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        working-directory: frontend
+        run: |
+          echo "🔗 Getting API Gateway URL from CloudFormation..."
+
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiGatewayUrl`].OutputValue' \
+            --output text \
+            --region ${{ secrets.AWS_REGION }})
+
+          echo "✅ Found API URL: $API_URL"
+          echo "🔄 Updating api.js with correct endpoint..."
+
+          # Update the API endpoint using Node.js
+          node -e "
+            const fs = require('fs');
+            const filePath = 'src/api.js';
+            let content = fs.readFileSync(filePath, 'utf8');
+            
+            content = content.replace(
+              /const LAMBDA_ENDPOINT\s*=\s*[\"'][^\"']*[\"'];?/,
+              \`const LAMBDA_ENDPOINT = \"$API_URL\";\`
+            );
+            
+            content = content.replace(
+              /const LAMBDA_ENDPOINT\s*=\s*\n\s*[\"'][^\"']*[\"'];?/,
+              \`const LAMBDA_ENDPOINT = \"$API_URL\";\`
+            );
+            
+            fs.writeFileSync(filePath, content);
+            console.log('✅ API endpoint updated successfully');
+          "
+
+          echo "📋 Updated api.js content:"
+          grep -A 1 "LAMBDA_ENDPOINT" src/api.js
+
+      - name: Rebuild frontend with updated API endpoint
+        working-directory: frontend
+        run: npm run build
+
+      - name: Deploy frontend to S3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        working-directory: frontend
+        run: |
+          # Get S3 bucket name
+          BUCKET_NAME=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query 'Stacks[0].Outputs[?OutputKey==`FrontendS3BucketName`].OutputValue' \
+            --output text \
+            --region ${{ secrets.AWS_REGION }})
+
+          echo "🚀 Deploying to S3 bucket: $BUCKET_NAME"
+
+          # Deploy to S3
+          aws s3 sync build/ s3://$BUCKET_NAME \
+            --delete \
+            --cache-control "max-age=86400" \
+            --exclude "*.html"
+
+          # Upload HTML with no-cache
+          aws s3 sync build/ s3://$BUCKET_NAME \
+            --cache-control "no-cache, no-store, must-revalidate" \
+            --include "*.html"
+
+      # Step 12: Invalidate CloudFront cache
+      - name: Invalidate CloudFront cache
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query 'Stacks[0].Outputs[?OutputKey==`FrontendCloudFrontDistributionId`].OutputValue' \
+            --output text \
+            --region ${{ secrets.AWS_REGION }})
+
+          echo "🔄 Creating CloudFront invalidation..."
+          aws cloudfront create-invalidation \
+            --distribution-id $DISTRIBUTION_ID \
+            --paths "/*"
+
+          echo "✅ Development deployment completed!"
+          echo "🌐 Development URL: https://$SUBDOMAIN_NAME.$DOMAIN_NAME"
