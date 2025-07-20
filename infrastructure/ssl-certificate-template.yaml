@@ -42,22 +42,22 @@ Outputs:
     Description: SSL Certificate ARN for CloudFront (in us-east-1)
     Value: !Ref CloudFrontSSLCertificate
     Export:
-      Name: !Sub "ssl-cert-${DomainName}-arn"
+      Name: "hexmi-ssl-certificate-arn"
 
   CertificateRegion:
     Description: Region where the certificate was created
     Value: !Ref AWS::Region
     Export:
-      Name: !Sub "ssl-cert-${DomainName}-region"
+      Name: "hexmi-ssl-certificate-region"
 
   DomainName:
     Description: Domain name for this certificate
     Value: !Ref DomainName
     Export:
-      Name: !Sub "ssl-cert-${DomainName}-domain"
+      Name: "hexmi-ssl-certificate-domain"
 
   SubdomainName:
     Description: Subdomain name for this certificate
     Value: !Sub "${SubdomainName}.${DomainName}"
     Export:
-      Name: !Sub "ssl-cert-${DomainName}-subdomain"
+      Name: "hexmi-ssl-certificate-subdomain"
