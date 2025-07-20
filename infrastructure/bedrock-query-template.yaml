@@ -23,13 +23,19 @@ Parameters:
     Description: Route 53 Hosted Zone ID for your domain
     Default: "Z01335492T06E59B8E8ZZ" # Your hexmi.com hosted zone ID
 
+  SSLCertificateArn:
+    Type: String
+    Description: SSL Certificate ARN from us-east-1 (optional)
+    Default: ""
+
 Conditions:
   UseCustomDomain: !Not [!Equals [!Ref HostedZoneId, ""]]
   IsProduction: !Equals [!Ref Environment, "prod"]
+  HasExternalSSLCert: !Not [!Equals [!Ref SSLCertificateArn, ""]]
 
 Resources:
-  # NOTE: SSL Certificate for custom domains requires manual setup in us-east-1
-  # For now, we'll deploy without custom SSL and use CloudFront default certificate
+  # NOTE: SSL Certificate is deployed separately in us-east-1 via GitHub Actions
+  # This template references the external SSL certificate via parameter
 
   # S3 Bucket for Frontend Hosting
   FrontendS3Bucket:
@@ -222,44 +228,22 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${BedrockQuizApiGateway}/*/*"
 
-  # SSL Certificate (Required for custom domain)
-  SSLCertificate:
-    Type: AWS::CertificateManager::Certificate
-    Condition: UseCustomDomain
-    Properties:
-      DomainName: !If
-        - IsProduction
-        - !Ref DomainName # hexmi.com for production
-        - !Sub "${SubdomainName}.${DomainName}" # quiz.hexmi.com for dev
-      SubjectAlternativeNames:
-        - !Sub "${SubdomainName}.${DomainName}" # Always include quiz.hexmi.com
-      ValidationMethod: DNS
-      DomainValidationOptions:
-        - DomainName: !Ref DomainName
-          HostedZoneId: !Ref HostedZoneId
-        - DomainName: !Sub "${SubdomainName}.${DomainName}"
-          HostedZoneId: !Ref HostedZoneId
-
-  # CloudFront Distribution (Updated for custom domain)
+  # CloudFront Distribution (Updated to use external SSL certificate)
   FrontendCloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
+    DependsOn:
+      - FrontendS3Bucket
+      - FrontendS3BucketPolicy
     Properties:
       DistributionConfig:
         Aliases: !If
-          - UseCustomDomain
+          - HasExternalSSLCert
           - !If
             - IsProduction
             - [!Ref DomainName, !Sub "${SubdomainName}.${DomainName}"] # Both hexmi.com and quiz.hexmi.com
             - [!Sub "${SubdomainName}.${DomainName}"] # Only quiz.hexmi.com for dev
           - !Ref AWS::NoValue
-
-        ViewerCertificate: !If
-          - UseCustomDomain
-          - AcmCertificateArn: !Ref SSLCertificate
-            SslSupportMethod: sni-only
-            MinimumProtocolVersion: TLSv1.2_2021
-          - CloudFrontDefaultCertificate: true
-
+        Comment: !Sub "CloudFront distribution for ${AWS::StackName}"
         DefaultCacheBehavior:
           TargetOriginId: S3Origin
           ViewerProtocolPolicy: redirect-to-https
@@ -281,7 +265,12 @@ Resources:
               HTTPSPort: 443
               OriginProtocolPolicy: http-only
         PriceClass: PriceClass_100
-        # Use CloudFront default certificate instead of custom SSL
+        ViewerCertificate: !If
+          - HasExternalSSLCert
+          - AcmCertificateArn: !Ref SSLCertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
         CustomErrorResponses:
           - ErrorCode: 404
             ResponseCode: 200
@@ -293,7 +282,7 @@ Resources:
   # Route 53 DNS Records
   DNSRecordMain:
     Type: AWS::Route53::RecordSet
-    Condition: IsProduction
+    Condition: HasExternalSSLCert  # Only create if we have SSL certificate
     Properties:
       HostedZoneId: !Ref HostedZoneId
       Name: !Ref DomainName # hexmi.com
@@ -304,7 +293,7 @@ Resources:
 
   DNSRecordSubdomain:
     Type: AWS::Route53::RecordSet
-    Condition: UseCustomDomain
+    Condition: HasExternalSSLCert  # Only create if we have SSL certificate
     Properties:
       HostedZoneId: !Ref HostedZoneId
       Name: !Sub "${SubdomainName}.${DomainName}" # quiz.hexmi.com
@@ -347,15 +336,14 @@ Outputs:
       Name: !Sub "${AWS::StackName}-FrontendCloudFrontURL"
 
   CustomDomainURL:
-    Description: Custom domain URL (disabled - requires SSL setup in us-east-1)
-    Value: !Sub "Will be available at https://${SubdomainName}.${DomainName} after manual SSL setup"
+    Description: Custom domain URL (if SSL certificate is configured)
+    Condition: HasExternalSSLCert
+    Value: !Sub "https://${SubdomainName}.${DomainName}"
 
-  # SSLCertificateArn:
-  #   Description: SSL Certificate ARN (if created)
-  #   Condition: UseCustomDomain
-  #   Value: !Ref SSLCertificate
-  #   Export:
-  #     Name: !Sub "${AWS::StackName}-SSLCertificateArn"
+  SSLCertificateArn:
+    Description: SSL Certificate ARN (if provided)
+    Condition: HasExternalSSLCert
+    Value: !Ref SSLCertificateArn
 
   FrontendCloudFrontDistributionId:
     Description: CloudFront distribution ID for cache invalidation

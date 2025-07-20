@@ -85,7 +85,82 @@ jobs:
             echo "✅ Stack is in good state: $STATUS"
           fi
 
-      # Step 7: Deploy CloudFormation Stack (NOW RUNS AFTER CLEANUP)
+      # Step 6.6: Deploy SSL Certificate in us-east-1 (NEW)
+      - name: Deploy SSL Certificate in us-east-1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1  # Force us-east-1 for SSL certificate
+          DOMAIN_NAME: "hexmi.com"
+          SUBDOMAIN_NAME: "quiz"
+          HOSTED_ZONE_ID: "Z01335492T06E59B8E8ZZ"
+        working-directory: infrastructure
+        run: |
+          echo "🔒 Deploying SSL Certificate in us-east-1..."
+          
+          # Check if SSL certificate stack already exists
+          SSL_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name hexmi-ssl-certificate \
+            --region us-east-1 \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "STACK_NOT_EXISTS")
+          
+          echo "SSL Certificate stack status: $SSL_STATUS"
+          
+          # Deploy the SSL certificate stack
+          aws cloudformation deploy \
+            --template-file ssl-certificate-template.yaml \
+            --stack-name hexmi-ssl-certificate \
+            --capabilities CAPABILITY_IAM \
+            --region us-east-1 \
+            --parameter-overrides \
+              DomainName=${DOMAIN_NAME} \
+              SubdomainName=${SUBDOMAIN_NAME} \
+              HostedZoneId=${HOSTED_ZONE_ID} \
+            --no-fail-on-empty-changeset
+          
+          echo "⏳ Waiting for SSL certificate validation..."
+          
+          # Get certificate ARN
+          CERT_ARN=$(aws cloudformation describe-stacks \
+            --stack-name hexmi-ssl-certificate \
+            --region us-east-1 \
+            --query 'Stacks[0].Outputs[?OutputKey==`SSLCertificateArn`].OutputValue' \
+            --output text)
+          
+          echo "🔒 SSL Certificate ARN: $CERT_ARN"
+          
+          # Wait for certificate to be issued (with timeout)
+          echo "⏳ Waiting for DNS validation (up to 10 minutes)..."
+          for i in {1..20}; do
+            CERT_STATUS=$(aws acm describe-certificate \
+              --certificate-arn $CERT_ARN \
+              --region us-east-1 \
+              --query 'Certificate.Status' \
+              --output text 2>/dev/null || echo "PENDING")
+            
+            echo "Certificate status: $CERT_STATUS (attempt $i/20)"
+            
+            if [[ "$CERT_STATUS" == "ISSUED" ]]; then
+              echo "✅ SSL Certificate is ready!"
+              break
+            elif [[ "$CERT_STATUS" == "FAILED" ]]; then
+              echo "❌ SSL Certificate validation failed"
+              echo "📋 Certificate details:"
+              aws acm describe-certificate \
+                --certificate-arn $CERT_ARN \
+                --region us-east-1 \
+                --query 'Certificate.DomainValidationOptions[*].[DomainName,ValidationStatus,ResourceRecord.Name,ResourceRecord.Value]' \
+                --output table
+              echo "⚠️ Continuing with deployment - certificate may validate later"
+              break
+            else
+              echo "⏳ Waiting for certificate validation (30 seconds)..."
+              sleep 30
+            fi
+          done
+
+      # Step 7: Deploy CloudFormation Stack (UPDATED WITH SSL CERTIFICATE)
       - name: Deploy CloudFormation Stack
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -97,6 +172,23 @@ jobs:
           HOSTED_ZONE_ID: "Z01335492T06E59B8E8ZZ"
         working-directory: infrastructure
         run: |
+          echo "🚀 Getting SSL Certificate ARN from us-east-1..."
+          
+          # Get SSL Certificate ARN from the us-east-1 stack
+          SSL_CERT_ARN=$(aws cloudformation describe-stacks \
+            --stack-name hexmi-ssl-certificate \
+            --region us-east-1 \
+            --query 'Stacks[0].Outputs[?OutputKey==`SSLCertificateArn`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -z "$SSL_CERT_ARN" ]; then
+            echo "⚠️ SSL Certificate not found - deploying without custom domain"
+            SSL_CERT_ARN=""
+          else
+            echo "🔒 Using SSL Certificate: $SSL_CERT_ARN"
+          fi
+          
+          # Deploy the main stack with SSL certificate reference
           aws cloudformation deploy \
             --template-file bedrock-query-template.yaml \
             --stack-name bedrock-query-stack \
@@ -106,7 +198,9 @@ jobs:
               Environment=${ENVIRONMENT} \
               DomainName=${DOMAIN_NAME} \
               SubdomainName=${SUBDOMAIN_NAME} \
-              HostedZoneId=${HOSTED_ZONE_ID}
+              HostedZoneId=${HOSTED_ZONE_ID} \
+              SSLCertificateArn=${SSL_CERT_ARN} \
+            --no-fail-on-empty-changeset
 
           echo "⏳ Ensuring stack is in a stable state..."
 

@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: SSL Certificate template for CloudFront (must be deployed in us-east-1)
+
+Parameters:
+  DomainName:
+    Type: String
+    Description: Your domain name (e.g., hexmi.com)
+    Default: "hexmi.com"
+
+  SubdomainName:
+    Type: String
+    Description: Subdomain for the quiz app (e.g., quiz)
+    Default: "quiz"
+
+  HostedZoneId:
+    Type: String
+    Description: Route 53 Hosted Zone ID for your domain
+    Default: "Z01335492T06E59B8E8ZZ"
+
+Resources:
+  # SSL Certificate for CloudFront (MUST be in us-east-1)
+  CloudFrontSSLCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Sub "${SubdomainName}.${DomainName}" # quiz.hexmi.com
+      SubjectAlternativeNames:
+        - !Ref DomainName # Also include hexmi.com
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Sub "${SubdomainName}.${DomainName}"
+          HostedZoneId: !Ref HostedZoneId
+        - DomainName: !Ref DomainName
+          HostedZoneId: !Ref HostedZoneId
+      Tags:
+        - Key: Name
+          Value: !Sub "${DomainName}-ssl-certificate"
+        - Key: Purpose
+          Value: "CloudFront SSL Certificate"
+
+Outputs:
+  SSLCertificateArn:
+    Description: SSL Certificate ARN for CloudFront (in us-east-1)
+    Value: !Ref CloudFrontSSLCertificate
+    Export:
+      Name: !Sub "ssl-cert-${DomainName}-arn"
+
+  CertificateRegion:
+    Description: Region where the certificate was created
+    Value: !Ref AWS::Region
+    Export:
+      Name: !Sub "ssl-cert-${DomainName}-region"
+
+  DomainName:
+    Description: Domain name for this certificate
+    Value: !Ref DomainName
+    Export:
+      Name: !Sub "ssl-cert-${DomainName}-domain"
+
+  SubdomainName:
+    Description: Subdomain name for this certificate
+    Value: !Sub "${SubdomainName}.${DomainName}"
+    Export:
+      Name: !Sub "ssl-cert-${DomainName}-subdomain"
