@@ -2,6 +2,13 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: CloudFormation template to provision a Lambda function and IAM roles for querying Bedrock Claude model.
 
 Parameters:
+  ProjectName:
+    Type: String
+    Description: Name of the project (used for resource naming)
+    Default: "bedrock-quiz"
+    AllowedPattern: "^[a-z0-9-]+$"
+    ConstraintDescription: "Must contain only lowercase letters, numbers, and hyphens"
+
   Environment:
     Type: String
     Description: Environment name (prod, dev, staging)
@@ -28,6 +35,19 @@ Parameters:
     Description: SSL Certificate ARN from us-east-1 (optional)
     Default: ""
 
+  LambdaTimeout:
+    Type: Number
+    Description: Lambda function timeout in seconds
+    Default: 15
+    MinValue: 1
+    MaxValue: 900
+
+  LambdaMemory:
+    Type: Number
+    Description: Lambda function memory in MB
+    Default: 128
+    AllowedValues: [128, 256, 512, 1024, 2048, 3072]
+
 Conditions:
   UseCustomDomain: !Not [!Equals [!Ref HostedZoneId, ""]]
   IsProduction: !Equals [!Ref Environment, "prod"]
@@ -41,7 +61,7 @@ Resources:
   FrontendS3Bucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "${AWS::StackName}-frontend-${AWS::AccountId}"
+      BucketName: !Sub "${ProjectName}-${Environment}-frontend-${AWS::AccountId}"
       PublicAccessBlockConfiguration:
         BlockPublicAcls: false
         BlockPublicPolicy: false
@@ -126,18 +146,20 @@ Resources:
   BedrockQueryLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: bedrock-query
+      FunctionName: !Sub "${ProjectName}-${Environment}-backend"
       Runtime: nodejs20.x
       Handler: src/handlers/queryBedrock.handler
       Role: !GetAtt BedrockQueryLambdaRole.Arn
       Code:
         S3Bucket: my-lambda-deployment-bucket-for-bedrock2
         S3Key: function.zip
-      Timeout: 15
-      MemorySize: 128
+      Timeout: !Ref LambdaTimeout
+      MemorySize: !Ref LambdaMemory
       Environment:
         Variables:
           BEDROCK_MODEL_ID: anthropic.claude-3-5-sonnet-20241022-v2:0
+          ENVIRONMENT: !Ref Environment
+          PROJECT_NAME: !Ref ProjectName
 
   # API Gateway REST API
   BedrockQuizApiGateway:
