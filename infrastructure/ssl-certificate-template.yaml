@@ -17,6 +17,19 @@ Parameters:
     Description: Route 53 Hosted Zone ID for your domain
     Default: "Z01335492T06E59B8E8ZZ"
 
+  ProjectName:
+    Type: String
+    Description: Name of the project (used for resource naming)
+    Default: "bedrock-quiz"
+    AllowedPattern: "^[a-z0-9-]+$"
+    ConstraintDescription: "Must contain only lowercase letters, numbers, and hyphens"
+
+  Environment:
+    Type: String
+    Description: Environment name (prod, dev, staging)
+    Default: "prod"
+    AllowedValues: ["prod", "dev", "staging"]
+
 Resources:
   # SSL Certificate for CloudFront (MUST be in us-east-1)
   CloudFrontSSLCertificate:
@@ -33,31 +46,35 @@ Resources:
           HostedZoneId: !Ref HostedZoneId
       Tags:
         - Key: Name
-          Value: !Sub "${DomainName}-ssl-certificate"
+          Value: !Sub "${ProjectName}-${Environment}-ssl-certificate"
         - Key: Purpose
           Value: "CloudFront SSL Certificate"
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
 
 Outputs:
   SSLCertificateArn:
     Description: SSL Certificate ARN for CloudFront (in us-east-1)
     Value: !Ref CloudFrontSSLCertificate
     Export:
-      Name: "hexmi-ssl-certificate-arn"
+      Name: !Sub "${AWS::StackName}-ssl-certificate-arn"
 
   CertificateRegion:
     Description: Region where the certificate was created
     Value: !Ref AWS::Region
     Export:
-      Name: "hexmi-ssl-certificate-region"
+      Name: !Sub "${AWS::StackName}-ssl-certificate-region"
 
   DomainName:
     Description: Domain name for this certificate
     Value: !Ref DomainName
     Export:
-      Name: "hexmi-ssl-certificate-domain"
+      Name: !Sub "${AWS::StackName}-ssl-certificate-domain"
 
   SubdomainName:
     Description: Subdomain name for this certificate
     Value: !Sub "${SubdomainName}.${DomainName}"
     Export:
-      Name: "hexmi-ssl-certificate-subdomain"
+      Name: !Sub "${AWS::StackName}-ssl-certificate-subdomain"

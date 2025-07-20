@@ -112,7 +112,9 @@ jobs:
             --parameter-overrides \
               DomainName=${DOMAIN_NAME} \
               SubdomainName=${SUBDOMAIN_NAME} \
-              HostedZoneId=${HOSTED_ZONE_ID}
+              HostedZoneId=${HOSTED_ZONE_ID} \
+              ProjectName=${PROJECT_NAME} \
+              Environment=${ENVIRONMENT}
 
       # Step 9: Deploy CloudFormation Stack
       - name: Deploy CloudFormation Stack

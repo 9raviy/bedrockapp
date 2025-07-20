@@ -119,7 +119,7 @@ jobs:
           
           # Check if SSL certificate stack already exists
           SSL_STATUS=$(aws cloudformation describe-stacks \
-            --stack-name hexmi-ssl-certificate \
+            --stack-name ${PROJECT_NAME}-${ENVIRONMENT}-ssl-certificate \
             --region us-east-1 \
             --query 'Stacks[0].StackStatus' \
             --output text 2>/dev/null || echo "STACK_NOT_EXISTS")
@@ -129,20 +129,22 @@ jobs:
           # Deploy the SSL certificate stack
           aws cloudformation deploy \
             --template-file ssl-certificate-template.yaml \
-            --stack-name hexmi-ssl-certificate \
+            --stack-name ${PROJECT_NAME}-${ENVIRONMENT}-ssl-certificate \
             --capabilities CAPABILITY_IAM \
             --region us-east-1 \
             --parameter-overrides \
               DomainName=${DOMAIN_NAME} \
               SubdomainName=${SUBDOMAIN_NAME} \
               HostedZoneId=${HOSTED_ZONE_ID} \
+              ProjectName=${PROJECT_NAME} \
+              Environment=${ENVIRONMENT} \
             --no-fail-on-empty-changeset
           
           echo "⏳ Waiting for SSL certificate validation..."
           
           # Get certificate ARN
           CERT_ARN=$(aws cloudformation describe-stacks \
-            --stack-name hexmi-ssl-certificate \
+            --stack-name ${PROJECT_NAME}-${ENVIRONMENT}-ssl-certificate \
             --region us-east-1 \
             --query 'Stacks[0].Outputs[?OutputKey==`SSLCertificateArn`].OutputValue' \
             --output text)
@@ -198,7 +200,7 @@ jobs:
           
           # Get SSL Certificate ARN from the us-east-1 stack
           SSL_CERT_ARN=$(aws cloudformation describe-stacks \
-            --stack-name hexmi-ssl-certificate \
+            --stack-name ${PROJECT_NAME}-${ENVIRONMENT}-ssl-certificate \
             --region us-east-1 \
             --query 'Stacks[0].Outputs[?OutputKey==`SSLCertificateArn`].OutputValue' \
             --output text 2>/dev/null || echo "")
