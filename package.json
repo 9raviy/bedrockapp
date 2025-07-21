@@ -1,0 +1,33 @@
+{
+  "name": "bedrockapp",
+  "version": "1.0.0",
+  "description": "Adaptive Quiz Application powered by AWS Bedrock (Claude 3.5 Sonnet)",
+  "private": true,
+  "license": "PROPRIETARY",
+  "author": "BedrockApp",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/bedrockapp.git"
+  },
+  "scripts": {
+    "setup": "node setup-environment.js",
+    "validate": "cd config && node validate-config.js",
+    "deploy:dev": "node deploy-local.js dev",
+    "deploy:prod": "node deploy-local.js prod",
+    "build:frontend": "cd frontend && npm install && npm run build",
+    "build:backend": "cd backend && npm install && zip -r function.zip ."
+  },
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "keywords": [
+    "aws",
+    "bedrock",
+    "claude",
+    "quiz",
+    "serverless",
+    "cloudformation",
+    "proprietary"
+  ]
+}

@@ -1,5 +1,7 @@
 # BedrockApp - Adaptive Quiz Application
 
+> **© 2025 BedrockApp. Proprietary Software - All Rights Reserved.**
+
 An intelligent quiz application powered by AWS Bedrock (Claude 3.5 Sonnet) that creates adaptive, personalized quizzes on any topic with real-time feedback and explanations.
 
 ## 🚀 Features
@@ -325,7 +327,19 @@ BedrockApp/
 
 ## 📜 License
 
-MIT License - feel free to use this project as a template for your own AWS serverless applications!
+**Proprietary Software** - All rights reserved.
+
+This software and its source code are proprietary and confidential. Unauthorized copying, distribution, modification, public display, or public performance of this software is strictly prohibited without explicit written permission from the owner.
+
+## ⚠️ Usage Restrictions
+
+- ❌ **No unauthorized copying or distribution**
+- ❌ **No modifications without permission** 
+- ❌ **No commercial use without license**
+- ❌ **No reverse engineering**
+- ✅ **Viewing for educational purposes only**
+
+For licensing inquiries or permissions, please contact the repository owner.
 
 ---
 
