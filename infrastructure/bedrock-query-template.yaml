@@ -18,17 +18,17 @@ Parameters:
   DomainName:
     Type: String
     Description: Your custom domain name (e.g., yourdomain.com)
-    Default: "hexmi.com"
+    # Default: "your-domain.com"
 
   SubdomainName:
     Type: String
     Description: Subdomain for the quiz app (e.g., quiz, dev-quiz)
-    Default: "quiz"
+    # Default: "your-app"
 
   HostedZoneId:
     Type: String
     Description: Route 53 Hosted Zone ID for your domain
-    Default: "Z01335492T06E59B8E8ZZ" # Your hexmi.com hosted zone ID
+    # Default: "YOUR_HOSTED_ZONE_ID"
 
   SSLCertificateArn:
     Type: String

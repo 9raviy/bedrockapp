@@ -1,0 +1,39 @@
+{
+  "projectName": "your-project-name",
+  "environment": "dev",
+  "domain": {
+    "domainName": "your-domain.com",
+    "subdomainName": "dev-your-app",
+    "hostedZoneId": "YOUR_HOSTED_ZONE_ID",
+    "customUrl": "https://dev-your-app.your-domain.com"
+  },
+  "backend": {
+    "runtime": "nodejs20.x",
+    "timeout": 30,
+    "memory": 256,
+    "handler": "src/handlers/queryBedrock.handler",
+    "environment": {
+      "BEDROCK_MODEL_ID": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+      "LOG_LEVEL": "DEBUG"
+    }
+  },
+  "frontend": {
+    "buildCommand": "npm run build",
+    "buildDir": "build",
+    "caching": {
+      "staticAssets": "max-age=86400",
+      "htmlFiles": "no-cache, no-store, must-revalidate"
+    }
+  },
+  "infrastructure": {
+    "region": "us-west-2",
+    "sslRegion": "us-east-1",
+    "stackName": "your-project-name-dev-stack"
+  },
+  "features": {
+    "enableSSL": true,
+    "enableCloudFront": true,
+    "enableCustomDomain": true,
+    "enableMonitoring": true
+  }
+}

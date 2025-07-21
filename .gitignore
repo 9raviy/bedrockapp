@@ -7,12 +7,18 @@ yarn-error.log*
 # Environment variables
 .env
 
-# Logs
-logs/
-*.log
+# Sensitive configuration files (use .template files instead)
+config/environments/prod.json
+config/environments/dev.json
+config/environments/staging.json
 
 # AWS credentials and config
 .aws/
+aws-credentials.json
+
+# Logs
+logs/
+*.log
 
 # IDE-specific files
 .vscode/
@@ -35,3 +41,24 @@ frontend/build/
 
 # Ignore backend zip files for Lambda deployment
 backend/*.zip
+
+# Local development files
+.local/
+.cache/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Sensitive documentation (create .template versions)
+GITHUB-SECRETS-SETUP.md
+deployment-config.local.json
+
+# Backup files
+*.bak
+*~

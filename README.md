@@ -22,6 +22,36 @@ API Gateway → Lambda → AWS Bedrock (Claude 3.5 Sonnet)
 Route 53 ← ACM SSL Certificate
 ```
 
+## 🚀 Quick Start
+
+### 1. Setup Environment Configuration
+```bash
+node setup-environment.js
+```
+This interactive script will help you configure your domain, AWS settings, and create the required environment files.
+
+### 2. Configure GitHub Secrets (for CI/CD deployment)
+- Copy `GITHUB-SECRETS-SETUP.md.template` to `GITHUB-SECRETS-SETUP.md` 
+- Follow the guide to set up required GitHub repository secrets
+- **Never commit the actual secrets file** - it's in `.gitignore`
+
+### 3. Deploy via GitHub Actions
+- Push to `main` branch for production deployment
+- Push to `develop` branch for development deployment
+
+### 4. Manual Deployment (alternative)
+- See detailed instructions in the Manual Deployment section below
+
+## 🔐 Security & Configuration
+
+This repository is configured to keep sensitive information secure:
+
+- ✅ **Sensitive config files** are in `.gitignore` 
+- ✅ **Template files** provide examples with placeholder values
+- ✅ **Setup script** helps create proper configuration files
+- ✅ **GitHub Secrets** store sensitive deployment credentials
+- ✅ **No hardcoded** domain names or AWS account details in code
+
 ## 📋 Environment Configuration System
 
 The application supports multiple environments (dev, prod) with environment-specific configurations:
@@ -43,13 +73,13 @@ Each environment configuration file contains:
 
 ```json
 {
-  "projectName": "bedrock-quiz",
+  "projectName": "your-project-name",
   "environment": "dev|prod",
   "domain": {
-    "domainName": "hexmi.com",
-    "subdomainName": "dev-quiz|quiz",
-    "hostedZoneId": "Z01335492T06E59B8E8ZZ",
-    "customUrl": "https://dev-quiz.hexmi.com|https://quiz.hexmi.com"
+    "domainName": "your-domain.com",
+    "subdomainName": "dev-your-app|your-app",
+    "hostedZoneId": "YOUR_HOSTED_ZONE_ID",
+    "customUrl": "https://dev-your-app.your-domain.com|https://your-app.your-domain.com"
   },
   "backend": {
     "runtime": "nodejs20.x",
@@ -72,7 +102,7 @@ Each environment configuration file contains:
   "infrastructure": {
     "region": "us-west-2",
     "sslRegion": "us-east-1",
-    "stackName": "bedrock-quiz-dev-stack|bedrock-quiz-prod-stack"
+    "stackName": "your-project-name-dev-stack|your-project-name-prod-stack"
   },
   "features": {
     "enableSSL": true,
@@ -87,13 +117,13 @@ Each environment configuration file contains:
 
 | Feature | Development | Production |
 |---------|-------------|------------|
-| **URL** | `https://dev-quiz.hexmi.com` | `https://quiz.hexmi.com` |
+| **URL** | `https://dev-your-app.your-domain.com` | `https://your-app.your-domain.com` |
 | **Lambda Timeout** | 30 seconds | 15 seconds |
 | **Lambda Memory** | 256 MB | 128 MB |
 | **Log Level** | DEBUG | INFO |
 | **Caching** | 1 day | 1 year |
 | **Monitoring** | Enabled | Disabled |
-| **Stack Name** | `bedrock-quiz-dev-stack` | `bedrock-quiz-prod-stack` |
+| **Stack Name** | `your-project-name-dev-stack` | `your-project-name-prod-stack` |
 
 ## 🛠️ Local Development & Deployment
 
@@ -151,23 +181,23 @@ If you prefer manual deployment:
    # Deploy SSL Certificate (us-east-1 for CloudFront)
    aws cloudformation deploy `
      --template-file ssl-certificate-template.yaml `
-     --stack-name bedrock-quiz-dev-ssl-certificate `
+     --stack-name your-project-name-dev-ssl-certificate `
      --region us-east-1 `
      --parameter-overrides `
-       DomainName=hexmi.com `
-       SubdomainName=dev-quiz `
-       HostedZoneId=Z01335492T06E59B8E8ZZ
+       DomainName=your-domain.com `
+       SubdomainName=dev-your-app `
+       HostedZoneId=YOUR_HOSTED_ZONE_ID
    
    # Deploy Main Stack
    aws cloudformation deploy `
      --template-file bedrock-query-template.yaml `
-     --stack-name bedrock-quiz-dev-stack `
+     --stack-name your-project-name-dev-stack `
      --capabilities CAPABILITY_NAMED_IAM `
      --parameter-overrides `
-       ProjectName=bedrock-quiz `
+       ProjectName=your-project-name `
        Environment=dev `
-       DomainName=hexmi.com `
-       SubdomainName=dev-quiz
+       DomainName=your-domain.com `
+       SubdomainName=dev-your-app
    ```
 
 3. **Frontend Deployment**
@@ -216,8 +246,9 @@ AWS_REGION
 
 ## 🌐 Live Applications
 
-- **Production**: https://quiz.hexmi.com
-- **Development**: https://dev-quiz.hexmi.com
+After configuration and deployment:
+- **Production**: `https://your-app.your-domain.com`
+- **Development**: `https://dev-your-app.your-domain.com`
 
 ## 📊 Usage
 
