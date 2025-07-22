@@ -2,9 +2,6 @@ const bedrockClient = require("../utils/bedrockClient");
 
 // Helper to build prompt for AWS Certification Exam Questions
 function buildQuizPrompt(quizType, questionNumber, lastQuestion, lastAnswer, wasCorrect) {
-// Helper to build prompt for AWS Certification Exam Questions
-function buildQuizPrompt(quizType, questionNumber, lastQuestion, lastAnswer, wasCorrect) {
-  
   // Quiz type specific configurations
   const quizConfigs = {
     'ai-practitioner': {
