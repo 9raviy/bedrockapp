@@ -18,6 +18,7 @@ function Quiz() {
   const [selectedAnswer, setSelectedAnswer] = useState("");
   const [feedback, setFeedback] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("");
   const [quizComplete, setQuizComplete] = useState(false);
   const [finalScore, setFinalScore] = useState(null);
   const [progress, setProgress] = useState(0);
@@ -30,6 +31,8 @@ function Quiz() {
 
   async function fetchQuestion(payload) {
     setLoading(true);
+    setLoadingMessage("Getting your next question...");
+    
     try {
       const res = await getNextQuestion(payload);
       console.log("API response:", res);
@@ -63,12 +66,19 @@ function Quiz() {
       setSelectedAnswer("");
     } catch (error) {
       console.error("Error fetching question:", error);
+      const errorMessage = error.message.includes('Failed to fetch') 
+        ? "Connection issue detected. Please check your internet connection and try again."
+        : error.message.includes('timeout')
+        ? "Request timed out. The AI service may be busy - please try again."
+        : "Failed to load question. Please try again.";
+        
       setFeedback({
         result: "Error",
-        explanation: "Failed to load question. Please try again.",
+        explanation: errorMessage,
       });
     } finally {
       setLoading(false);
+      setLoadingMessage("");
     }
   }
 
@@ -178,7 +188,7 @@ function Quiz() {
               </div>
             </form>
 
-            {loading && <div className="loading">Getting your next question...</div>}
+            {loading && <div className="loading">{loadingMessage}</div>}
           </div>
 
           {/* Sidebar Area */}
