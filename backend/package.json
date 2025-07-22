@@ -9,7 +9,6 @@
     "test": "echo \"No tests specified\" && exit 0"
   },
   "dependencies": {
-    "@aws-sdk/client-bedrock": "^3.826.0",
-    "dotenv": "^16.5.0"
+    "@aws-sdk/client-bedrock-runtime": "^3.826.0"
   }
 }
