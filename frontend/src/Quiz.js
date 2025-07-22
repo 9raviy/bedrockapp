@@ -10,8 +10,11 @@ const initialState = {
   wasCorrect: null,
 };
 
-function Quiz() {
-  const [state, setState] = useState(initialState);
+function Quiz({ quizType = 'ai-practitioner' }) {
+  const [state, setState] = useState({
+    ...initialState,
+    quizType: quizType
+  });
   const [question, setQuestion] = useState("");
   const [options, setOptions] = useState([]);
   const [correctAnswer, setCorrectAnswer] = useState("");
@@ -23,11 +26,14 @@ function Quiz() {
   const [finalScore, setFinalScore] = useState(null);
   const [progress, setProgress] = useState(0);
 
-  // Fetch first question on mount
+  // Fetch first question on mount or when quiz type changes
   useEffect(() => {
-    fetchQuestion(initialState);
+    fetchQuestion({
+      ...initialState,
+      quizType: quizType
+    });
     // eslint-disable-next-line
-  }, []);
+  }, [quizType]);
 
   async function fetchQuestion(payload) {
     setLoading(true);
@@ -101,16 +107,20 @@ function Quiz() {
   }
 
   function restartQuiz() {
+    const newInitialState = {
+      ...initialState,
+      quizType: quizType
+    };
     setQuizComplete(false);
     setFinalScore(null);
-    setState(initialState);
+    setState(newInitialState);
     setQuestion("");
     setOptions([]);
     setCorrectAnswer("");
     setSelectedAnswer("");
     setFeedback("");
     setProgress(0);
-    fetchQuestion(initialState);
+    fetchQuestion(newInitialState);
   }
 
   return (

@@ -1,10 +1,29 @@
 const bedrockClient = require("../utils/bedrockClient");
 
-// Helper to build prompt for AWS AI Practitioner Exam Questions
-function buildQuizPrompt(questionNumber, lastQuestion, lastAnswer, wasCorrect) {
+// Helper to build prompt for AWS Certification Exam Questions
+function buildQuizPrompt(quizType, questionNumber, lastQuestion, lastAnswer, wasCorrect) {
+// Helper to build prompt for AWS Certification Exam Questions
+function buildQuizPrompt(quizType, questionNumber, lastQuestion, lastAnswer, wasCorrect) {
+  
+  // Quiz type specific configurations
+  const quizConfigs = {
+    'ai-practitioner': {
+      examName: 'AWS AI Practitioner',
+      services: 'Amazon Bedrock, SageMaker, Comprehend, Rekognition, Polly, Transcribe, Translate, Textract, Lex, Kendra, Personalize, Forecast, CodeWhisperer, Q Business',
+      focus: 'AWS AI/ML services, AI governance, ethics, responsible AI practices, AI/ML model deployment, monitoring, and lifecycle management, cost optimization and security best practices for AI workloads'
+    },
+    'solutions-architect': {
+      examName: 'AWS Certified Solutions Architect Associate',
+      services: 'EC2, S3, VPC, RDS, Lambda, CloudFront, Route 53, IAM, CloudFormation, ELB, Auto Scaling, CloudWatch, SNS, SQS, API Gateway, DynamoDB, ElastiCache, EFS, EBS',
+      focus: 'AWS core services, architectural best practices, high availability, fault tolerance, scalability, security, cost optimization, disaster recovery, networking, storage solutions'
+    }
+  };
+
+  const config = quizConfigs[quizType] || quizConfigs['ai-practitioner'];
+  
   if (!lastQuestion) {
     // First question
-    return `Generate a multiple choice quiz question for the AWS AI Practitioner exam. This is question ${questionNumber} of 10.
+    return `Generate a multiple choice quiz question for the ${config.examName} exam. This is question ${questionNumber} of 10.
 
 Format your response as a JSON object with this exact structure:
 {
@@ -14,16 +33,14 @@ Format your response as a JSON object with this exact structure:
 }
 
 Requirements:
-- Focus on AWS AI/ML services: Amazon Bedrock, SageMaker, Comprehend, Rekognition, Polly, Transcribe, Translate, Textract, Lex, Kendra, Personalize, Forecast, CodeWhisperer, Q Business
-- Include AWS AI governance, ethics, responsible AI practices
-- Cover AI/ML model deployment, monitoring, and lifecycle management
-- Include cost optimization and security best practices for AI workloads
+- Focus on: ${config.focus}
+- Key AWS services: ${config.services}
 - Create 4 options (A, B, C, D) with only 1 correct answer
 - Make incorrect options plausible but clearly wrong
 - Use realistic AWS scenarios and use cases
 - Return ONLY the JSON object, no other text`;
   } else if (wasCorrect) {
-    return `The user answered the previous AWS AI Practitioner exam question correctly. Generate the next question (${questionNumber} of 10).
+    return `The user answered the previous ${config.examName} exam question correctly. Generate the next question (${questionNumber} of 10).
 
 Format your response as a JSON object with this exact structure:
 {
@@ -33,17 +50,15 @@ Format your response as a JSON object with this exact structure:
 }
 
 Requirements:
-- Focus on AWS AI/ML services: Amazon Bedrock, SageMaker, Comprehend, Rekognition, Polly, Transcribe, Translate, Textract, Lex, Kendra, Personalize, Forecast, CodeWhisperer, Q Business
-- Include AWS AI governance, ethics, responsible AI practices
-- Cover AI/ML model deployment, monitoring, and lifecycle management
-- Include cost optimization and security best practices for AI workloads
+- Focus on: ${config.focus}
+- Key AWS services: ${config.services}
 - Create 4 options (A, B, C, D) with only 1 correct answer
 - Make incorrect options plausible but clearly wrong
 - Use realistic AWS scenarios and use cases
-- Ensure this question covers a different AWS AI service or concept than the previous question
+- Ensure this question covers a different AWS service or concept than the previous question
 - Return ONLY the JSON object, no other text`;
   } else {
-    return `The user answered the previous AWS AI Practitioner exam question incorrectly. Generate the next question (${questionNumber} of 10).
+    return `The user answered the previous ${config.examName} exam question incorrectly. Generate the next question (${questionNumber} of 10).
 
 Format your response as a JSON object with this exact structure:
 {
@@ -53,14 +68,12 @@ Format your response as a JSON object with this exact structure:
 }
 
 Requirements:
-- Focus on AWS AI/ML services: Amazon Bedrock, SageMaker, Comprehend, Rekognition, Polly, Transcribe, Translate, Textract, Lex, Kendra, Personalize, Forecast, CodeWhisperer, Q Business
-- Include AWS AI governance, ethics, responsible AI practices
-- Cover AI/ML model deployment, monitoring, and lifecycle management
-- Include cost optimization and security best practices for AI workloads
+- Focus on: ${config.focus}
+- Key AWS services: ${config.services}
 - Create 4 options (A, B, C, D) with only 1 correct answer
 - Make incorrect options plausible but clearly wrong
 - Use realistic AWS scenarios and use cases
-- Ensure this question covers a different AWS AI service or concept than the previous question
+- Ensure this question covers a different AWS service or concept than the previous question
 - Return ONLY the JSON object, no other text`;
   }
 }
@@ -93,8 +106,9 @@ exports.handler = async (event) => {
     const requestBody =
       typeof event.body === "string" ? JSON.parse(event.body) : event.body;
 
-    // Extract quiz state from request body - Updated for AWS AI Practitioner exam
+    // Extract quiz state from request body - Updated for multiple quiz types
     const {
+      quizType = 'ai-practitioner', // Default to AI Practitioner
       lastQuestion = null,
       lastAnswer = null, // This will be "A", "B", "C", or "D"
       lastCorrectAnswer = null, // We'll need this to check answers
@@ -106,12 +120,20 @@ exports.handler = async (event) => {
     // Check if quiz is complete
     if (questionNumber > 10) {
       const finalPercentage = Math.round((score / 10) * 100);
-      let resultMessage = "";
+      const quizNames = {
+        'ai-practitioner': 'AWS AI Practitioner',
+        'solutions-architect': 'AWS Certified Solutions Architect Associate'
+      };
+      const examName = quizNames[quizType] || 'AWS AI Practitioner';
       
+      let resultMessage = "";
+
       if (finalPercentage >= 70) {
-        resultMessage = "Congratulations! You passed the AWS AI Practitioner practice exam!";
+        resultMessage =
+          `Congratulations! You passed the ${examName} practice exam!`;
       } else {
-        resultMessage = "Keep studying! You need 70% to pass the AWS AI Practitioner exam.";
+        resultMessage =
+          `Keep studying! You need 70% to pass the ${examName} exam.`;
       }
 
       return {
@@ -119,14 +141,16 @@ exports.handler = async (event) => {
         headers: corsHeaders,
         body: JSON.stringify({
           quizComplete: true,
+          quizType: quizType,
+          examName: examName,
           finalScore: score,
           totalQuestions: 10,
           percentage: finalPercentage,
           message: resultMessage,
           feedback: {
             result: finalPercentage >= 70 ? "Passed" : "Failed",
-            explanation: `You scored ${score}/10 (${finalPercentage}%). ${resultMessage}`
-          }
+            explanation: `You scored ${score}/10 (${finalPercentage}%). ${resultMessage}`,
+          },
         }),
       };
     }
@@ -157,15 +181,24 @@ exports.handler = async (event) => {
       } else {
         console.log("Answer was incorrect, getting explanation...");
 
-        // ✅ IMPROVED: AWS AI Practitioner specific explanation prompt
-        const explanationPrompt = `A student answered an AWS AI Practitioner exam question incorrectly.
+        // ✅ IMPROVED: Quiz type specific explanation prompt
+        const quizNames = {
+          'ai-practitioner': 'AWS AI Practitioner',
+          'solutions-architect': 'AWS Certified Solutions Architect Associate'
+        };
+        const examName = quizNames[quizType] || 'AWS AI Practitioner';
+        const focusArea = quizType === 'solutions-architect' 
+          ? 'AWS architectural best practices and core services'
+          : 'AWS AI/ML services';
+          
+        const explanationPrompt = `A student answered an ${examName} exam question incorrectly.
 
 Question: "${lastQuestion}"
 Student's Answer: "${lastAnswer}"
 Correct Answer: "${lastCorrectAnswer}"
 
-Provide a concise explanation focusing on AWS AI/ML services in this format:
-"The correct answer is ${lastCorrectAnswer}. Your choice ${lastAnswer} is incorrect because [BRIEF REASON]. [ONE EDUCATIONAL FACT about the AWS AI/ML service or concept]."
+Provide a concise explanation focusing on ${focusArea} in this format:
+"The correct answer is ${lastCorrectAnswer}. Your choice ${lastAnswer} is incorrect because [BRIEF REASON]. [ONE EDUCATIONAL FACT about the AWS service or concept]."
 
 Keep it educational and AWS-focused, under 60 words:`;
 
@@ -181,7 +214,7 @@ Keep it educational and AWS-focused, under 60 words:`;
         };
         console.log("Final answerFeedback object:", answerFeedback);
       }
-      
+
       // Move to next question
       updatedQuestionNumber = questionNumber + 1;
     }
@@ -190,6 +223,7 @@ Keep it educational and AWS-focused, under 60 words:`;
     const isCorrectAnswer =
       answerFeedback && answerFeedback.result === "Correct";
     const quizPrompt = buildQuizPrompt(
+      quizType,
       updatedQuestionNumber,
       lastQuestion,
       lastAnswer,
@@ -240,20 +274,35 @@ Keep it educational and AWS-focused, under 60 words:`;
       console.error("Error parsing question JSON:", parseError);
       console.error("Raw response:", quizResponse.response);
 
-      // AWS AI Practitioner fallback question
-      questionData = {
-        question: "Which AWS service is designed to help developers build conversational interfaces using voice and text?",
-        options: [
-          "A) Amazon Comprehend", 
-          "B) Amazon Lex", 
-          "C) Amazon Polly", 
-          "D) Amazon Transcribe"
-        ],
-        correctAnswer: "B",
+      // Fallback questions based on quiz type
+      const fallbackQuestions = {
+        'ai-practitioner': {
+          question: "Which AWS service is designed to help developers build conversational interfaces using voice and text?",
+          options: [
+            "A) Amazon Comprehend",
+            "B) Amazon Lex", 
+            "C) Amazon Polly",
+            "D) Amazon Transcribe",
+          ],
+          correctAnswer: "B",
+        },
+        'solutions-architect': {
+          question: "Which AWS service provides a managed NoSQL database with fast and predictable performance?",
+          options: [
+            "A) Amazon RDS",
+            "B) Amazon Redshift",
+            "C) Amazon DynamoDB",
+            "D) Amazon ElastiCache",
+          ],
+          correctAnswer: "C",
+        }
       };
+
+      questionData = fallbackQuestions[quizType] || fallbackQuestions['ai-practitioner'];
     }
 
     const finalResponse = {
+      quizType: quizType,
       nextQuestion: questionData.question,
       options: questionData.options,
       correctAnswer: questionData.correctAnswer,
