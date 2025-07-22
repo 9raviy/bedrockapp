@@ -105,11 +105,6 @@ function Quiz() {
 
   return (
     <div className="quiz-container">
-      <div className="quiz-header">
-        <h1>AWS AI Practitioner Practice Exam</h1>
-        <p>Test your knowledge of AWS AI/ML services and best practices</p>
-      </div>
-
       {quizComplete ? (
         // Quiz completion screen
         <div className="quiz-complete">
@@ -140,95 +135,114 @@ function Quiz() {
           </div>
         </div>
       ) : (
-        // Active quiz screen
+        // Active quiz screen with split layout
         <>
-          <div className="progress-container">
-            <div className="progress-bar">
-              <div 
-                className="progress-fill" 
-                style={{ width: `${progress}%` }}
-              ></div>
+          {/* Main Content Area */}
+          <div className="quiz-main">
+            <div className="quiz-header">
+              <h1>AWS AI Practitioner Practice Exam</h1>
+              <p>Test your knowledge of AWS AI/ML services and best practices</p>
             </div>
-            <div className="progress-text">
-              Question {state.questionNumber}/10 ({progress}%)
-            </div>
-          </div>
 
-          <div className="stats-container">
-            <div className="stat-card">
-              <div className="stat-label">Score</div>
-              <div className="stat-value">{state.score}/10</div>
+            <div className="question">
+              {question || "Welcome! Click 'Start Quiz' to begin your AWS AI Practitioner practice exam."}
             </div>
-            <div className="stat-card">
-              <div className="stat-label">Progress</div>
-              <div className="stat-value">{state.questionNumber}/10</div>
-            </div>
-          </div>
 
-          <div className="question">
-            {question || "Welcome! Click 'Start Quiz' to begin your AWS AI Practitioner practice exam."}
-          </div>
+            {/* Multiple Choice Options */}
+            {options.length > 0 && (
+              <div className="options-container">
+                {options.map((option, index) => (
+                  <button
+                    key={index}
+                    className={`option-btn ${
+                      selectedAnswer === option.charAt(0) ? "selected" : ""
+                    }`}
+                    onClick={() => handleOptionSelect(option)}
+                    disabled={loading}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            )}
 
-          {/* Multiple Choice Options */}
-          {options.length > 0 && (
-            <div className="options-container">
-              {options.map((option, index) => (
+            <form onSubmit={handleSubmit} className="answer-form">
+              <div className="input-container">
                 <button
-                  key={index}
-                  className={`option-btn ${
-                    selectedAnswer === option.charAt(0) ? "selected" : ""
-                  }`}
-                  onClick={() => handleOptionSelect(option)}
-                  disabled={loading}
+                  type="submit"
+                  disabled={loading || (!selectedAnswer && question)}
+                  className="submit-btn"
                 >
-                  {option}
+                  {loading ? "Loading..." : question ? "Submit Answer" : "Start Quiz"}
                 </button>
-              ))}
-            </div>
-          )}
+              </div>
+            </form>
 
-          <form onSubmit={handleSubmit} className="answer-form">
-            <div className="input-container">
-              <button
-                type="submit"
-                disabled={loading || (!selectedAnswer && question)}
-                className="submit-btn"
+            {loading && <div className="loading">Getting your next question...</div>}
+          </div>
+
+          {/* Sidebar Area */}
+          <div className="quiz-sidebar">
+            {/* Progress Section */}
+            <div className="progress-container">
+              <h3>Quiz Progress</h3>
+              <div className="progress-bar">
+                <div 
+                  className="progress-fill" 
+                  style={{ width: `${progress}%` }}
+                ></div>
+              </div>
+              <div className="progress-text">
+                Question {state.questionNumber}/10 ({progress}%)
+              </div>
+            </div>
+
+            {/* Stats Section */}
+            <div className="stats-container">
+              <div className="stat-card">
+                <div className="stat-label">Current Score</div>
+                <div className="stat-value">{state.score}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-label">Questions Answered</div>
+                <div className="stat-value">{state.questionNumber - 1}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-label">Remaining</div>
+                <div className="stat-value">{10 - (state.questionNumber - 1)}</div>
+              </div>
+            </div>
+
+            {/* Feedback Section */}
+            {feedback && (
+              <div
+                className={`sidebar-feedback ${
+                  typeof feedback === "object" &&
+                  feedback &&
+                  feedback.result === "Correct"
+                    ? "correct"
+                    : "incorrect"
+                }`}
               >
-                {loading ? "Loading..." : question ? "Submit Answer" : "Start Quiz"}
-              </button>
-            </div>
-          </form>
-
-          {feedback && (
-            <div
-              className={`feedback ${
-                typeof feedback === "object" &&
-                feedback &&
-                feedback.result === "Correct"
-                  ? "correct"
-                  : "incorrect"
-              }`}
-            >
-              {typeof feedback === "string" ? (
-                feedback
-              ) : feedback && typeof feedback === "object" ? (
-                <div>
-                  <div className="feedback-result">
-                    {feedback.result || "Error"}
-                  </div>
-                  {feedback.explanation && (
-                    <div className="feedback-explanation">
-                      {feedback.explanation}
+                {typeof feedback === "string" ? (
+                  feedback
+                ) : feedback && typeof feedback === "object" ? (
+                  <div>
+                    <div className="feedback-result">
+                      {feedback.result || "Error"}
                     </div>
-                  )}
-                </div>
-              ) : (
-                "No feedback available"
-              )}
-            </div>
-          )}
-
-          {loading && <div className="loading">Getting your next question...</div>}
+                    {feedback.explanation && (
+                      <div className="feedback-explanation">
+                        {feedback.explanation}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  "No feedback available"
+                )}
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>
