@@ -1,10 +1,10 @@
 const bedrockClient = require("../utils/bedrockClient");
 
-// Helper to build prompt for Bedrock - Updated for Multiple Choice
-function buildQuizPrompt(difficulty, lastQuestion, lastAnswer, wasCorrect) {
+// Helper to build prompt for AWS AI Practitioner Exam Questions
+function buildQuizPrompt(questionNumber, lastQuestion, lastAnswer, wasCorrect) {
   if (!lastQuestion) {
     // First question
-    return `Generate a multiple choice quiz question for a user. The difficulty level is ${difficulty}.
+    return `Generate a multiple choice quiz question for the AWS AI Practitioner exam. This is question ${questionNumber} of 10.
 
 Format your response as a JSON object with this exact structure:
 {
@@ -14,13 +14,16 @@ Format your response as a JSON object with this exact structure:
 }
 
 Requirements:
-- Create 4 options (A, B, C, D)
-- Only 1 option should be correct
-- Make the incorrect options plausible but clearly wrong
-- Difficulty level ${difficulty} (1=easy, 10=very hard)
+- Focus on AWS AI/ML services: Amazon Bedrock, SageMaker, Comprehend, Rekognition, Polly, Transcribe, Translate, Textract, Lex, Kendra, Personalize, Forecast, CodeWhisperer, Q Business
+- Include AWS AI governance, ethics, responsible AI practices
+- Cover AI/ML model deployment, monitoring, and lifecycle management
+- Include cost optimization and security best practices for AI workloads
+- Create 4 options (A, B, C, D) with only 1 correct answer
+- Make incorrect options plausible but clearly wrong
+- Use realistic AWS scenarios and use cases
 - Return ONLY the JSON object, no other text`;
   } else if (wasCorrect) {
-    return `The user answered the previous question correctly. Generate a new multiple choice quiz question with increased difficulty level ${difficulty}.
+    return `The user answered the previous AWS AI Practitioner exam question correctly. Generate the next question (${questionNumber} of 10).
 
 Format your response as a JSON object with this exact structure:
 {
@@ -30,13 +33,17 @@ Format your response as a JSON object with this exact structure:
 }
 
 Requirements:
-- Create 4 options (A, B, C, D)
-- Only 1 option should be correct
-- Make it more challenging than basic questions
-- Difficulty level ${difficulty} (1=easy, 10=very hard)
+- Focus on AWS AI/ML services: Amazon Bedrock, SageMaker, Comprehend, Rekognition, Polly, Transcribe, Translate, Textract, Lex, Kendra, Personalize, Forecast, CodeWhisperer, Q Business
+- Include AWS AI governance, ethics, responsible AI practices
+- Cover AI/ML model deployment, monitoring, and lifecycle management
+- Include cost optimization and security best practices for AI workloads
+- Create 4 options (A, B, C, D) with only 1 correct answer
+- Make incorrect options plausible but clearly wrong
+- Use realistic AWS scenarios and use cases
+- Ensure this question covers a different AWS AI service or concept than the previous question
 - Return ONLY the JSON object, no other text`;
   } else {
-    return `The user answered the previous question incorrectly. Generate a new multiple choice quiz question at the same difficulty level ${difficulty}.
+    return `The user answered the previous AWS AI Practitioner exam question incorrectly. Generate the next question (${questionNumber} of 10).
 
 Format your response as a JSON object with this exact structure:
 {
@@ -46,10 +53,14 @@ Format your response as a JSON object with this exact structure:
 }
 
 Requirements:
-- Create 4 options (A, B, C, D)
-- Only 1 option should be correct
-- Keep similar difficulty level
-- Difficulty level ${difficulty} (1=easy, 10=very hard)
+- Focus on AWS AI/ML services: Amazon Bedrock, SageMaker, Comprehend, Rekognition, Polly, Transcribe, Translate, Textract, Lex, Kendra, Personalize, Forecast, CodeWhisperer, Q Business
+- Include AWS AI governance, ethics, responsible AI practices
+- Cover AI/ML model deployment, monitoring, and lifecycle management
+- Include cost optimization and security best practices for AI workloads
+- Create 4 options (A, B, C, D) with only 1 correct answer
+- Make incorrect options plausible but clearly wrong
+- Use realistic AWS scenarios and use cases
+- Ensure this question covers a different AWS AI service or concept than the previous question
 - Return ONLY the JSON object, no other text`;
   }
 }
@@ -61,7 +72,7 @@ exports.handler = async (event) => {
     "Access-Control-Allow-Headers":
       "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
     "Access-Control-Allow-Methods": "POST,OPTIONS",
-    "Access-Control-Max-Age": "86400" // Cache preflight for 24 hours
+    "Access-Control-Max-Age": "86400", // Cache preflight for 24 hours
   };
 
   console.log("Event received:", JSON.stringify(event, null, 2));
@@ -82,19 +93,47 @@ exports.handler = async (event) => {
     const requestBody =
       typeof event.body === "string" ? JSON.parse(event.body) : event.body;
 
-    // Extract quiz state from request body
+    // Extract quiz state from request body - Updated for AWS AI Practitioner exam
     const {
       lastQuestion = null,
-      lastAnswer = null, // This will now be "A", "B", "C", or "D"
+      lastAnswer = null, // This will be "A", "B", "C", or "D"
       lastCorrectAnswer = null, // We'll need this to check answers
       score = 0,
-      difficulty = 1,
+      questionNumber = 1, // Track which question we're on (1-10)
       wasCorrect = null,
     } = requestBody || event;
 
+    // Check if quiz is complete
+    if (questionNumber > 10) {
+      const finalPercentage = Math.round((score / 10) * 100);
+      let resultMessage = "";
+      
+      if (finalPercentage >= 70) {
+        resultMessage = "Congratulations! You passed the AWS AI Practitioner practice exam!";
+      } else {
+        resultMessage = "Keep studying! You need 70% to pass the AWS AI Practitioner exam.";
+      }
+
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify({
+          quizComplete: true,
+          finalScore: score,
+          totalQuestions: 10,
+          percentage: finalPercentage,
+          message: resultMessage,
+          feedback: {
+            result: finalPercentage >= 70 ? "Passed" : "Failed",
+            explanation: `You scored ${score}/10 (${finalPercentage}%). ${resultMessage}`
+          }
+        }),
+      };
+    }
+
     // If there was a previous question, check the answer
     let updatedScore = score;
-    let updatedDifficulty = difficulty;
+    let updatedQuestionNumber = questionNumber;
     let answerFeedback = null;
 
     if (lastQuestion && lastAnswer && lastCorrectAnswer) {
@@ -114,22 +153,21 @@ exports.handler = async (event) => {
           explanation: "Well done! That's the correct answer.",
         };
         updatedScore += 1;
-        updatedDifficulty = Math.min(10, updatedDifficulty + 1); // Cap at difficulty 10
         console.log("Answer was correct, updated score:", updatedScore);
       } else {
         console.log("Answer was incorrect, getting explanation...");
 
-        // ✅ IMPROVED: Explanation prompt for multiple choice
-        const explanationPrompt = `A student answered a multiple choice question incorrectly.
+        // ✅ IMPROVED: AWS AI Practitioner specific explanation prompt
+        const explanationPrompt = `A student answered an AWS AI Practitioner exam question incorrectly.
 
 Question: "${lastQuestion}"
 Student's Answer: "${lastAnswer}"
 Correct Answer: "${lastCorrectAnswer}"
 
-Provide a concise explanation in this format:
-"The correct answer is ${lastCorrectAnswer}. Your choice ${lastAnswer} is incorrect because [BRIEF REASON]. [ONE EDUCATIONAL FACT about the correct answer]."
+Provide a concise explanation focusing on AWS AI/ML services in this format:
+"The correct answer is ${lastCorrectAnswer}. Your choice ${lastAnswer} is incorrect because [BRIEF REASON]. [ONE EDUCATIONAL FACT about the AWS AI/ML service or concept]."
 
-Keep it educational but under 50 words:`;
+Keep it educational and AWS-focused, under 60 words:`;
 
         const explanationResponse = await bedrockClient.queryBedrock(
           explanationPrompt
@@ -142,17 +180,17 @@ Keep it educational but under 50 words:`;
             explanationResponse.response || "No explanation available.",
         };
         console.log("Final answerFeedback object:", answerFeedback);
-
-        // Keep same difficulty or decrease slightly
-        updatedDifficulty = Math.max(1, updatedDifficulty);
       }
+      
+      // Move to next question
+      updatedQuestionNumber = questionNumber + 1;
     }
 
     // Build prompt for next question
     const isCorrectAnswer =
       answerFeedback && answerFeedback.result === "Correct";
     const quizPrompt = buildQuizPrompt(
-      updatedDifficulty,
+      updatedQuestionNumber,
       lastQuestion,
       lastAnswer,
       isCorrectAnswer
@@ -202,10 +240,15 @@ Keep it educational but under 50 words:`;
       console.error("Error parsing question JSON:", parseError);
       console.error("Raw response:", quizResponse.response);
 
-      // Fallback to a simple question format
+      // AWS AI Practitioner fallback question
       questionData = {
-        question: quizResponse.response || "What is 2 + 2?",
-        options: ["A) 3", "B) 4", "C) 5", "D) 6"],
+        question: "Which AWS service is designed to help developers build conversational interfaces using voice and text?",
+        options: [
+          "A) Amazon Comprehend", 
+          "B) Amazon Lex", 
+          "C) Amazon Polly", 
+          "D) Amazon Transcribe"
+        ],
         correctAnswer: "B",
       };
     }
@@ -215,7 +258,9 @@ Keep it educational but under 50 words:`;
       options: questionData.options,
       correctAnswer: questionData.correctAnswer,
       score: updatedScore,
-      difficulty: updatedDifficulty,
+      questionNumber: updatedQuestionNumber,
+      totalQuestions: 10,
+      progress: Math.round((updatedQuestionNumber / 10) * 100),
       feedback: answerFeedback,
     };
 

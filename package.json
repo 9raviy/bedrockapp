@@ -1,10 +1,10 @@
 {
-  "name": "bedrockapp",
+  "name": "aws-ai-practitioner-quiz",
   "version": "1.0.0",
-  "description": "Adaptive Quiz Application powered by AWS Bedrock (Claude 3.5 Sonnet)",
+  "description": "AWS AI Practitioner Exam Practice Quiz powered by AWS Bedrock (Claude 3.5 Sonnet)",
   "private": true,
   "license": "PROPRIETARY",
-  "author": "BedrockApp",
+  "author": "AWS AI Quiz App",
   "repository": {
     "type": "git",
     "url": "https://github.com/your-username/bedrockapp.git"

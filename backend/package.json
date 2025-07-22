@@ -1,7 +1,7 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "AWS Lambda project for querying Bedrock",
+  "description": "AWS Lambda backend for AWS AI Practitioner exam quiz app",
   "main": "src/handlers/queryBedrock.js",
   "private": true,
   "license": "PROPRIETARY",
