@@ -22,20 +22,20 @@ jobs:
         with:
           node-version: "20"
 
-      # Step 3: Load environment configuration
-      - name: Load Production Configuration
+      # Step 3: Set environment variables from secrets (Updated for security)
+      - name: Set Production Environment Variables
         run: |
-          echo "📋 Loading production environment configuration..."
-          CONFIG=$(cat config/environments/prod.json)
+          echo "📋 Setting production environment variables from secrets..."
           
-          echo "PROJECT_NAME=$(echo $CONFIG | jq -r '.projectName')" >> $GITHUB_ENV
-          echo "ENVIRONMENT=$(echo $CONFIG | jq -r '.environment')" >> $GITHUB_ENV
-          echo "DOMAIN_NAME=$(echo $CONFIG | jq -r '.domain.domainName')" >> $GITHUB_ENV
-          echo "SUBDOMAIN_NAME=$(echo $CONFIG | jq -r '.domain.subdomainName')" >> $GITHUB_ENV
-          echo "HOSTED_ZONE_ID=$(echo $CONFIG | jq -r '.domain.hostedZoneId')" >> $GITHUB_ENV
-          echo "LAMBDA_TIMEOUT=$(echo $CONFIG | jq -r '.backend.timeout')" >> $GITHUB_ENV
-          echo "LAMBDA_MEMORY=$(echo $CONFIG | jq -r '.backend.memory')" >> $GITHUB_ENV
-          echo "STACK_NAME=$(echo $CONFIG | jq -r '.infrastructure.stackName')" >> $GITHUB_ENV
+          echo "PROJECT_NAME=bedrock-quiz" >> $GITHUB_ENV
+          echo "ENVIRONMENT=prod" >> $GITHUB_ENV
+          echo "DOMAIN_NAME=${{ secrets.DOMAIN_NAME }}" >> $GITHUB_ENV
+          echo "SUBDOMAIN_NAME=${{ secrets.SUBDOMAIN_NAME }}" >> $GITHUB_ENV
+          echo "HOSTED_ZONE_ID=${{ secrets.HOSTED_ZONE_ID }}" >> $GITHUB_ENV
+          echo "LAMBDA_TIMEOUT=15" >> $GITHUB_ENV
+          echo "LAMBDA_MEMORY=128" >> $GITHUB_ENV
+          echo "STACK_NAME=bedrock-query-stack" >> $GITHUB_ENV
+          echo "ENABLE_CLOUDFRONT=true" >> $GITHUB_ENV
           
           echo "✅ Configuration loaded for environment: $ENVIRONMENT"
 
