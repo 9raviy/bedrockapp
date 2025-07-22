@@ -25,6 +25,9 @@ function Quiz({ quizType = 'ai-practitioner' }) {
   const [quizComplete, setQuizComplete] = useState(false);
   const [finalScore, setFinalScore] = useState(null);
   const [progress, setProgress] = useState(0);
+  const [showingFeedback, setShowingFeedback] = useState(false);
+  const [answeredCorrectly, setAnsweredCorrectly] = useState(null);
+  const [nextQuestionData, setNextQuestionData] = useState(null);
 
   // Fetch first question on mount or when quiz type changes
   useEffect(() => {
@@ -94,10 +97,97 @@ function Quiz({ quizType = 'ai-practitioner' }) {
       return; // Don't submit if no answer selected
     }
 
-    await fetchQuestion({
-      ...state,
-      lastAnswer: selectedAnswer,
-    });
+    // Get feedback and next question from the API
+    setLoading(true);
+    setLoadingMessage("Checking your answer...");
+    
+    try {
+      const res = await getNextQuestion({
+        ...state,
+        lastAnswer: selectedAnswer,
+      });
+      
+      console.log("API response:", res);
+
+      // Check if quiz is complete
+      if (res.quizComplete) {
+        setQuizComplete(true);
+        setFinalScore(res);
+        setFeedback(res.feedback || "");
+        setLoading(false);
+        return;
+      }
+
+      // Show feedback and determine if answer was correct
+      setFeedback(res.feedback || "");
+      const isCorrect = typeof res.feedback === "object" &&
+        res.feedback &&
+        res.feedback.result === "Correct";
+      
+      setAnsweredCorrectly(isCorrect);
+      setShowingFeedback(true);
+      
+      // Store the next question data but don't display it yet
+      setNextQuestionData({
+        question: res.nextQuestion,
+        options: res.options || [],
+        correctAnswer: res.correctAnswer || "",
+        progress: res.progress || 0,
+      });
+      
+      // Update state with the response data
+      setState({
+        ...state,
+        lastAnswer: selectedAnswer,
+        lastQuestion: question,
+        lastCorrectAnswer: correctAnswer,
+        score: res.score,
+        questionNumber: res.questionNumber,
+        wasCorrect: isCorrect,
+      });
+      
+      // If answer was correct, automatically proceed to next question after a brief delay
+      if (isCorrect) {
+        setTimeout(() => {
+          proceedToNextQuestion();
+        }, 2000); // 2 second delay to show correct feedback
+      }
+      // If incorrect, wait for user to click "Continue"
+      
+    } catch (error) {
+      console.error("Error fetching question:", error);
+      const errorMessage = error.message.includes('Failed to fetch') 
+        ? "Connection issue detected. Please check your internet connection and try again."
+        : error.message.includes('timeout')
+        ? "Request timed out. The AI service may be busy - please try again."
+        : "Failed to load question. Please try again.";
+        
+      setFeedback({
+        result: "Error",
+        explanation: errorMessage,
+      });
+    } finally {
+      setLoading(false);
+      setLoadingMessage("");
+    }
+  }
+
+  function proceedToNextQuestion() {
+    // Load the next question from stored data
+    if (nextQuestionData) {
+      setQuestion(nextQuestionData.question);
+      setOptions(nextQuestionData.options);
+      setCorrectAnswer(nextQuestionData.correctAnswer);
+      setProgress(nextQuestionData.progress);
+      setSelectedAnswer("");
+      setShowingFeedback(false);
+      setAnsweredCorrectly(null);
+      setNextQuestionData(null);
+    }
+  }
+
+  function handleContinue() {
+    proceedToNextQuestion();
   }
 
   function handleOptionSelect(option) {
@@ -120,6 +210,9 @@ function Quiz({ quizType = 'ai-practitioner' }) {
     setSelectedAnswer("");
     setFeedback("");
     setProgress(0);
+    setShowingFeedback(false);
+    setAnsweredCorrectly(null);
+    setNextQuestionData(null);
     fetchQuestion(newInitialState);
   }
 
@@ -176,9 +269,13 @@ function Quiz({ quizType = 'ai-practitioner' }) {
                     key={index}
                     className={`option-btn ${
                       selectedAnswer === option.charAt(0) ? "selected" : ""
+                    } ${
+                      showingFeedback && option.charAt(0) === correctAnswer ? "correct-answer" : ""
+                    } ${
+                      showingFeedback && selectedAnswer === option.charAt(0) && answeredCorrectly === false ? "incorrect-answer" : ""
                     }`}
                     onClick={() => handleOptionSelect(option)}
-                    disabled={loading}
+                    disabled={loading || showingFeedback}
                   >
                     {option}
                   </button>
@@ -188,13 +285,31 @@ function Quiz({ quizType = 'ai-practitioner' }) {
 
             <form onSubmit={handleSubmit} className="answer-form">
               <div className="input-container">
-                <button
-                  type="submit"
-                  disabled={loading || (!selectedAnswer && question)}
-                  className="submit-btn"
-                >
-                  {loading ? "Loading..." : question ? "Submit Answer" : "Start Quiz"}
-                </button>
+                {showingFeedback && answeredCorrectly === false ? (
+                  // Show Continue button for incorrect answers
+                  <button
+                    type="button"
+                    onClick={handleContinue}
+                    disabled={loading}
+                    className="submit-btn continue-btn"
+                  >
+                    {loading ? "Loading..." : "Continue to Next Question"}
+                  </button>
+                ) : showingFeedback && answeredCorrectly === true ? (
+                  // Show auto-advancing message for correct answers
+                  <div className="auto-advance-message">
+                    ✅ Correct! Moving to next question...
+                  </div>
+                ) : (
+                  // Show Submit Answer button for unanswered questions
+                  <button
+                    type="submit"
+                    disabled={loading || (!selectedAnswer && question)}
+                    className="submit-btn"
+                  >
+                    {loading ? "Loading..." : question ? "Submit Answer" : "Start Quiz"}
+                  </button>
+                )}
               </div>
             </form>
 

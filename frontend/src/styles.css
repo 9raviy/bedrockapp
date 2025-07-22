@@ -304,6 +304,63 @@ body {
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
 }
 
+/* Feedback state styles for option buttons */
+.option-btn.correct-answer {
+  background: linear-gradient(135deg, #28a745, #34ce57);
+  color: white;
+  border-color: #28a745;
+}
+
+.option-btn.incorrect-answer {
+  background: linear-gradient(135deg, #dc3545, #e55353);
+  color: white;
+  border-color: #dc3545;
+}
+
+.option-btn.correct-answer::after {
+  content: "✓ Correct";
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.1em;
+  font-weight: bold;
+}
+
+.option-btn.incorrect-answer::after {
+  content: "✗ Your Answer";
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.1em;
+  font-weight: bold;
+}
+
+/* Continue button styles */
+.continue-btn {
+  background: linear-gradient(135deg, #ff9900, #ffb84d);
+  border-color: #ff9900;
+}
+
+.continue-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #e6820e, #ff9900);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(255, 153, 0, 0.3);
+}
+
+/* Auto-advance message */
+.auto-advance-message {
+  background: linear-gradient(135deg, #28a745, #34ce57);
+  color: white;
+  padding: 15px 25px;
+  border-radius: 10px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 1.1em;
+  box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+}
+
 /* AWS AI Practitioner Theme Styles */
 .quiz-header {
   text-align: center;
